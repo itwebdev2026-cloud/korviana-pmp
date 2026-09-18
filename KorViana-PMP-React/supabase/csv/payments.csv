@@ -1,0 +1,1 @@
+id,order_id,installment_id,customer_id,amount,payment_method,provider_reference,status,paid_at,created_at
