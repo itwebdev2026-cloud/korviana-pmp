@@ -547,7 +547,28 @@ function Login({ initialRole, onEnter, onBack }) {
       return;
     }
 
-    onEnter(role);
+    const { data: { user } } = await supabase.auth.getUser();
+    const { data: profile, error: profileError } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .single();
+
+    if (profileError || !profile) {
+      await supabase.auth.signOut();
+      setMessage("Your account profile is not ready yet. Please contact an administrator.");
+      return;
+    }
+
+    const requestedRole = role === "agent" ? "associate" : role;
+    if (profile.role !== requestedRole) {
+      await supabase.auth.signOut();
+      const actualRole = profile.role === "associate" ? "Associate" : profile.role[0].toUpperCase() + profile.role.slice(1);
+      setMessage(`This account is registered as ${actualRole}. Choose the matching login type.`);
+      return;
+    }
+
+    onEnter(profile.role === "associate" ? "agent" : profile.role);
   }
 
   return (
