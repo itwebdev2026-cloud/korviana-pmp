@@ -2,6 +2,7 @@ import './App.css';
 
 import { useState } from 'react';
 import { supabase } from './lib/supabaseClient';
+import { payWithRazorpay } from './lib/razorpayCheckout';
 
 const svgBase = { fill: "none", stroke: "currentColor", strokeWidth: "1.8", strokeLinecap: "round", strokeLinejoin: "round" };
 const Menu = ({ size = 18, className = "" }) => (<svg width={size} height={size} viewBox="0 0 24 24" {...svgBase} className={className}><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/></svg>);
@@ -160,6 +161,7 @@ const Fonts = () => (
     }
     .btn-primary:hover { transform: translateY(-1px); filter: brightness(1.06); box-shadow: 0 14px 30px -10px rgba(179,135,47,0.65); }
     .btn-primary:active { transform: translateY(0); }
+    .btn-primary:disabled { cursor: not-allowed; opacity: .65; transform: none; filter: none; box-shadow: none; }
 
     .btn-ghost { transition: background-color .2s ease, border-color .2s ease, transform .2s ease; }
     .btn-ghost:hover { transform: translateY(-1px); }
@@ -205,7 +207,7 @@ const LOGO = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAABOYAAATmCAYAAACF/K4q
 
 const money = (n) => "₹" + n.toLocaleString("en-IN");
 
-function buildSchedule(total) {
+function buildSchedule(total, mockHistory = true) {
   const advance = Math.round(total * 0.2);
   const balance = total - advance;
   const per = Math.round(balance / 10);
@@ -214,7 +216,7 @@ function buildSchedule(total) {
     advance,
     instalments: months.map((m, i) => ({
       no: i + 1, month: m + " 2027", amount: i === 9 ? balance - per * 9 : per,
-      status: i < 3 ? "paid" : i === 3 ? "due" : "upcoming",
+      status: mockHistory ? (i < 3 ? "paid" : i === 3 ? "due" : "upcoming") : "upcoming",
     })),
   };
 }
@@ -225,18 +227,18 @@ const initialOrders = [
 ];
 
 const downline = [
-  { name: "Ritu Shah", level: 1, status: "active", psv: 142000, tsv: 612000 },
-  { name: "Arvind Menon", level: 1, status: "active", psv: 98000, tsv: 340000 },
-  { name: "Divya Kapoor", level: 2, status: "inactive", psv: 0, tsv: 0 },
-  { name: "Faizan Ali", level: 2, status: "active", psv: 61000, tsv: 61000 },
-  { name: "Neha Bhatt", level: 1, status: "active", psv: 210000, tsv: 210000 },
+  { name: "Ato Tara", level: 1, status: "active", psv: 142000, tsv: 612000 },
+  { name: "Vimha", level: 1, status: "active", psv: 98000, tsv: 340000 },
+  { name: "Grace", level: 2, status: "inactive", psv: 0, tsv: 0 },
+  { name: "Meleto", level: 2, status: "active", psv: 61000, tsv: 61000 },
+  { name: "Wete", level: 1, status: "active", psv: 210000, tsv: 210000 },
 ];
 
 const commissionLedger = [
-  { date: "18 Aug", from: "Direct sale · A. Menon", level: "Direct", amount: 4210 },
-  { date: "14 Aug", from: "Downline · R. Shah", level: "Level 1", amount: 980 },
-  { date: "09 Aug", from: "Direct sale · N. Bhatt", level: "Direct", amount: 6300 },
-  { date: "02 Aug", from: "Downline · F. Ali", level: "Level 2", amount: 240 },
+  { date: "18 Aug", from: "Direct sale · Vimha", level: "Direct", amount: 4210 },
+  { date: "14 Aug", from: "Downline · Ato Tara", level: "Level 1", amount: 980 },
+  { date: "09 Aug", from: "Direct sale · Wete", level: "Direct", amount: 6300 },
+  { date: "02 Aug", from: "Downline · Meleto", level: "Level 2", amount: 240 },
 ];
 
 const commissionByMonth = [
@@ -245,23 +247,23 @@ const commissionByMonth = [
 ];
 
 const leaderboard = [
-  { name: "Kavita Iyer", tsv: 940000 }, { name: "You — Sameer Rao", tsv: 823000 },
-  { name: "Owais Sheikh", tsv: 761000 }, { name: "Priya Nair", tsv: 705000 },
-  { name: "Devraj Singh", tsv: 640000 },
+  { name: "Ato Tara", tsv: 940000 }, { name: "You — Akhum Anar", tsv: 823000 },
+  { name: "Vimha", tsv: 761000 }, { name: "Grace", tsv: 705000 },
+  { name: "Meleto", tsv: 640000 },
 ];
 
 const adminOrders = [
-  { id: "PMP-2201", customer: "A. Sharma", agent: "S. Rao", value: 78420, collected: 39210, status: "On track" },
-  { id: "PMP-2198", customer: "M. Patel", agent: "S. Rao", value: 47100, collected: 47100, status: "Completed" },
-  { id: "PMP-2195", customer: "R. Gupta", agent: "K. Iyer", value: 156840, collected: 31368, status: "Overdue" },
-  { id: "PMP-2190", customer: "T. Reddy", agent: "O. Sheikh", value: 9420, collected: 1884, status: "On track" },
+  { id: "PMP-2201", customer: "Grace", agent: "A. Tara", value: 78420, collected: 39210, status: "On track" },
+  { id: "PMP-2198", customer: "Vimha", agent: "A. Tara", value: 47100, collected: 47100, status: "Completed" },
+  { id: "PMP-2195", customer: "Meleto", agent: "A. Anar", value: 156840, collected: 31368, status: "Overdue" },
+  { id: "PMP-2190", customer: "Wete", agent: "Vimha", value: 9420, collected: 1884, status: "On track" },
 ];
 
 const adminAgents = [
-  { name: "Kavita Iyer", rank: "Elite", status: "active", tsv: 940000, kyc: "Verified" },
-  { name: "Sameer Rao", rank: "Gold", status: "active", tsv: 823000, kyc: "Verified" },
-  { name: "Owais Sheikh", rank: "Gold", status: "active", tsv: 761000, kyc: "Pending" },
-  { name: "Priya Nair", rank: "Silver", status: "inactive", tsv: 705000, kyc: "Verified" },
+  { name: "Ato Tara", rank: "Elite", status: "active", tsv: 940000, kyc: "Verified" },
+  { name: "Akhum Anar", rank: "Gold", status: "active", tsv: 823000, kyc: "Verified" },
+  { name: "Vimha", rank: "Gold", status: "active", tsv: 761000, kyc: "Pending" },
+  { name: "Grace", rank: "Silver", status: "inactive", tsv: 705000, kyc: "Verified" },
 ];
 
 /* =========================================================================
@@ -293,8 +295,8 @@ const ProgressBar = ({ pct, dark }) => (
   </div>
 );
 
-const PrimaryButton = ({ children, onClick, className = "", type = "button" }) => (
-  <button type={type} onClick={onClick}
+const PrimaryButton = ({ children, onClick, className = "", type = "button", disabled = false }) => (
+  <button type={type} onClick={onClick} disabled={disabled}
     className={`btn-primary pill font-body text-sm font-medium px-5 py-2.5 focus-ring ${className}`}>
     {children}
   </button>
@@ -366,8 +368,16 @@ function Landing({ goLogin }) {
           </div>
           <nav className="hidden md:flex items-center gap-8 text-sm">
             <a href="#how" className="hover:text-gold-deep transition-colors">How it works</a>
-            <a href="#catalogue" className="hover:text-gold-deep transition-colors">Catalogue</a>
-            <a href="#associates" className="hover:text-gold-deep transition-colors">For associates</a>
+            <a href="/about.html" className="hover:text-gold-deep transition-colors">About</a>
+            <details className="brochure-menu">
+              <summary className="hover:text-gold-deep transition-colors">
+                Brochure <ChevronRight size={14} className="brochure-chevron" />
+              </summary>
+              <div className="brochure-dropdown">
+                <a href="#catalogue">Purchase</a>
+                <a href="#associates">Associates</a>
+              </div>
+            </details>
           </nav>
           <div className="hidden md:flex items-center gap-3">
             <GhostButton onClick={() => goLogin("customer")}>Sign in</GhostButton>
@@ -380,8 +390,16 @@ function Landing({ goLogin }) {
         {menuOpen && (
           <div className="md:hidden border-t border-hair px-5 py-4 flex flex-col gap-3 glass-nav">
             <a href="#how" onClick={() => setMenuOpen(false)}>How it works</a>
-            <a href="#catalogue" onClick={() => setMenuOpen(false)}>Catalogue</a>
-            <a href="#associates" onClick={() => setMenuOpen(false)}>For associates</a>
+            <a href="/about.html" onClick={() => setMenuOpen(false)}>About</a>
+            <details className="brochure-menu brochure-menu-mobile">
+              <summary>
+                Brochure <ChevronRight size={14} className="brochure-chevron" />
+              </summary>
+              <div className="brochure-dropdown">
+                <a href="#catalogue" onClick={() => setMenuOpen(false)}>Purchase</a>
+                <a href="#associates" onClick={() => setMenuOpen(false)}>Associates</a>
+              </div>
+            </details>
             <GhostButton onClick={() => goLogin("customer")} className="w-full text-center">Sign in</GhostButton>
             <PrimaryButton onClick={() => goLogin("agent")} className="w-full text-center">Become an associate</PrimaryButton>
           </div>
@@ -467,9 +485,6 @@ function Landing({ goLogin }) {
                 </div>
                 <div className="font-display text-lg mb-2">{title} login</div>
                 <p className="text-sm text-muted-ink leading-relaxed flex-1">{desc}</p>
-                <button onClick={() => goLogin(role)} className="mt-5 text-sm font-medium text-gold-deep flex items-center gap-1 hover:gap-2 transition-all focus-ring">
-                  Sign in <ChevronRight size={16} />
-                </button>
               </div>
             ))}
           </div>
@@ -508,25 +523,52 @@ function Login({ initialRole, onEnter, onBack }) {
     ["admin", "Admin", ShieldCheck],
   ];
 
+  async function issueOtp(contact) {
+    const options = { shouldCreateUser: role === "customer" };
+    return supabase.auth.signInWithOtp(
+      contactMethod === "email" ? { email: contact, options } : { phone: contact, options }
+    );
+  }
+
   async function sendOtp(e) {
     e.preventDefault();
     setLoading(true);
     setMessage("");
 
-    const contact = contactMethod === "email" ? email.trim() : phone.trim();
-    const { error } = await supabase.auth.signInWithOtp(
-      contactMethod === "email" ? { email: contact } : { phone: contact }
-    );
+    const contact = contactMethod === "email" ? email.trim().toLowerCase() : phone.trim();
+    try {
+      const { error } = await issueOtp(contact);
 
-    setLoading(false);
+      if (error) {
+        setMessage(error.message);
+        return;
+      }
 
-    if (error) {
-      setMessage(error.message);
-      return;
+      setOtpSent(true);
+      setMessage(`OTP sent to your ${contactMethod === "email" ? "email" : "mobile number"}.`);
+    } catch {
+      setMessage("Unable to reach Supabase. Check your connection and project URL, then try again.");
+    } finally {
+      setLoading(false);
     }
+  }
 
-    setOtpSent(true);
-    setMessage(`OTP sent to your ${contactMethod === "email" ? "email" : "mobile number"}.`);
+  async function resendOtp() {
+    setLoading(true);
+    setMessage("");
+    const contact = contactMethod === "email" ? email.trim().toLowerCase() : phone.trim();
+    try {
+      const { error } = await issueOtp(contact);
+      if (error) {
+        setMessage(error.message);
+        return;
+      }
+      setMessage(`A new OTP was sent to your ${contactMethod === "email" ? "email" : "mobile number"}.`);
+    } catch {
+      setMessage("Unable to reach Supabase. Check your connection and project URL, then try again.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function verifyOtp(e) {
@@ -534,41 +576,51 @@ function Login({ initialRole, onEnter, onBack }) {
     setLoading(true);
     setMessage("");
 
-    const contact = contactMethod === "email" ? email.trim() : phone.trim();
-    const { error } = await supabase.auth.verifyOtp({
-      ...(contactMethod === "email" ? { email: contact, type: "email" } : { phone: contact, type: "sms" }),
-      token: otp.trim(),
-    });
+    const contact = contactMethod === "email" ? email.trim().toLowerCase() : phone.trim();
+    try {
+      const { error } = await supabase.auth.verifyOtp({
+        ...(contactMethod === "email" ? { email: contact, type: "email" } : { phone: contact, type: "sms" }),
+        token: otp.trim(),
+      });
 
-    setLoading(false);
+      if (error) {
+        setMessage(error.message);
+        return;
+      }
 
-    if (error) {
-      setMessage(error.message);
-      return;
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError || !user) {
+        setMessage(userError?.message || "OTP verified, but no signed-in user was found. Please try again.");
+        return;
+      }
+
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("role, is_master")
+        .eq("id", user.id)
+        .single();
+
+      if (profileError || !profile) {
+        await supabase.auth.signOut();
+        setMessage("Your account profile is not ready yet. Please contact an administrator.");
+        return;
+      }
+
+      const requestedRole = role === "agent" ? "associate" : role;
+      const canAccessAllPortals = profile.role === "admin" && profile.is_master === true;
+      if (!canAccessAllPortals && profile.role !== requestedRole) {
+        await supabase.auth.signOut();
+        const actualRole = profile.role === "associate" ? "Associate" : profile.role[0].toUpperCase() + profile.role.slice(1);
+        setMessage(`This account is registered as ${actualRole}. Choose the matching login type.`);
+        return;
+      }
+
+      onEnter(canAccessAllPortals ? role : profile.role === "associate" ? "agent" : profile.role, false);
+    } catch {
+      setMessage("Unable to reach Supabase. Check your connection and project URL, then try again.");
+    } finally {
+      setLoading(false);
     }
-
-    const { data: { user } } = await supabase.auth.getUser();
-    const { data: profile, error: profileError } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", user.id)
-      .single();
-
-    if (profileError || !profile) {
-      await supabase.auth.signOut();
-      setMessage("Your account profile is not ready yet. Please contact an administrator.");
-      return;
-    }
-
-    const requestedRole = role === "agent" ? "associate" : role;
-    if (profile.role !== requestedRole) {
-      await supabase.auth.signOut();
-      const actualRole = profile.role === "associate" ? "Associate" : profile.role[0].toUpperCase() + profile.role.slice(1);
-      setMessage(`This account is registered as ${actualRole}. Choose the matching login type.`);
-      return;
-    }
-
-    onEnter(profile.role === "associate" ? "agent" : profile.role);
   }
 
   return (
@@ -641,14 +693,14 @@ function Login({ initialRole, onEnter, onBack }) {
                   placeholder="+91 98765 43210"
                   required
                   autoComplete="tel"
-                  pattern="\\+[1-9]\\d{7,14}"
+                  pattern="\+[1-9]\d{7,14}"
                   title="Use international format, for example +919876543210"
                   className="auth-input w-full border text-bone px-3 focus-ring"
                 />
               )}
             </div>
 
-            <PrimaryButton type="submit" className="w-full mt-1 text-center py-2.5 text-sm">
+            <PrimaryButton type="submit" disabled={loading} className="w-full mt-1 text-center py-2.5 text-sm">
               {loading ? "Sending OTP..." : `Send OTP to ${roles.find((r) => r[0] === role)[1]}`}
             </PrimaryButton>
           </form>
@@ -674,12 +726,17 @@ function Login({ initialRole, onEnter, onBack }) {
               </div>
             </div>
 
-            <PrimaryButton type="submit" className="w-full text-center py-2 text-xs">
+            <PrimaryButton type="submit" disabled={loading} className="w-full text-center py-2 text-xs">
               {loading ? "Verifying..." : `Verify & enter ${roles.find((r) => r[0] === role)[1]}`}
             </PrimaryButton>
 
+            <button type="button" disabled={loading} onClick={resendOtp} className="text-xs text-muted-bone hover:text-bone disabled:opacity-50">
+              {loading ? "Please wait..." : "Resend OTP"}
+            </button>
+
             <button
               type="button"
+              disabled={loading}
               onClick={() => {
                 setOtpSent(false);
                 setOtp("");
@@ -693,6 +750,17 @@ function Login({ initialRole, onEnter, onBack }) {
             </button>
           </form>
         )}
+
+        <div className="mt-3 text-center">
+          <div className="text-[10px] text-muted-bone mb-1">Demo: demo@korviana.local</div>
+          <button
+            type="button"
+            onClick={() => onEnter(role === "agent" ? "agent" : role, true)}
+            className="w-full text-xs text-muted-bone hover:text-bone py-2 transition-colors"
+          >
+            Continue with demo login (no OTP)
+          </button>
+        </div>
 
         {message && (
           <div className="text-sm text-center text-muted-bone mt-4">
@@ -713,7 +781,6 @@ function PortalShell({ title, roleLabel, tabs, active, setActive, onExit, childr
     <div className="min-h-screen bg-bone font-body flex">
       <aside className="hidden md:flex flex-col w-60 bg-ink text-bone shrink-0 min-h-screen">
         <div className="px-6 py-6 border-b border-hair-dark flex items-center gap-2.5">
-          <img src="/korviana-logo.png" alt="KorViana Ventures LLP" className="brand-logo h-16 w-auto" />
           <div>
             <div className="font-display text-base leading-tight">KorViana</div>
             <div className="text-xs text-muted-bone mt-0.5">{roleLabel}</div>
@@ -738,7 +805,10 @@ function PortalShell({ title, roleLabel, tabs, active, setActive, onExit, childr
             <button className="md:hidden focus-ring" onClick={() => setMobileNav((v) => !v)} aria-label="Menu">
               {mobileNav ? <X size={20} /> : <Menu size={20} />}
             </button>
-            <div className="font-display text-lg">{title}</div>
+            <div>
+              <div className="font-display text-lg">{roleLabel.split(" · ")[1] || roleLabel}</div>
+              <div className="text-xs text-muted-ink">{title}</div>
+            </div>
           </div>
           <div className="flex items-center gap-4">
             <Bell size={18} className="text-muted-ink" />
@@ -771,10 +841,12 @@ function PortalShell({ title, roleLabel, tabs, active, setActive, onExit, childr
 /* =========================================================================
    CUSTOMER PORTAL
    ========================================================================= */
-function CustomerPortal({ onExit }) {
+function CustomerPortal({ onExit, isDemo }) {
   const [active, setActive] = useState("overview");
   const [orders, setOrders] = useState(initialOrders);
   const [modalProduct, setModalProduct] = useState(null);
+  const [paymentLoading, setPaymentLoading] = useState(false);
+  const [paymentMessage, setPaymentMessage] = useState("");
 
   const outstanding = orders.reduce((sum, o) => sum + o.instalments.filter((i) => i.status !== "paid").reduce((s, i) => s + i.amount, 0), 0);
   const nextDue = orders.flatMap((o) => o.instalments.filter((i) => i.status === "due")).length;
@@ -784,15 +856,24 @@ function CustomerPortal({ onExit }) {
     ["orders", "My orders", ListChecks], ["payments", "Payments", CreditCard], ["profile", "Profile", UserCircle],
   ];
 
-  const placeOrder = (product) => {
-    const id = "PMP-" + Math.floor(2300 + Math.random() * 90);
-    setOrders((o) => [{ id, item: `${product.metal} · ${product.weight}${product.metal === "Gold" ? "g" : product.weight >= 1000 ? "kg" : "g"}`, total: product.price, ...buildSchedule(product.price) }, ...o]);
-    setModalProduct(null);
-    setActive("orders");
+  const placeOrder = async (product) => {
+    if (isDemo) return;
+    setPaymentLoading(true);
+    setPaymentMessage("");
+    try {
+      const payment = await payWithRazorpay(product.id);
+      setOrders((current) => [{ id: payment.orderNumber, item: `${product.metal} · ${product.weight}${product.metal === "Gold" ? "g" : product.weight >= 1000 ? "kg" : "g"}`, total: product.price, ...buildSchedule(product.price, false) }, ...current]);
+      setModalProduct(null);
+      setActive("orders");
+    } catch (error) {
+      setPaymentMessage(error instanceof Error ? error.message : "Payment could not be completed.");
+    } finally {
+      setPaymentLoading(false);
+    }
   };
 
   return (
-    <PortalShell title="Customer portal" roleLabel="Customer · Anita Sharma" tabs={tabs} active={active} setActive={setActive} onExit={onExit}>
+    <PortalShell title="Customer portal" roleLabel="Customer · Akhum Anar" tabs={tabs} active={active} setActive={setActive} onExit={onExit}>
       {active === "overview" && (
         <div className="flex flex-col gap-8">
           <div className="grid sm:grid-cols-3 gap-4">
@@ -818,7 +899,7 @@ function CustomerPortal({ onExit }) {
                     <div className="text-sm text-muted-ink">{p.purity}</div>
                     <div className="font-display text-xl mt-1">{p.weight}{p.metal === "Gold" ? "g" : p.weight >= 1000 ? "kg" : "g"} {p.metal}</div>
                     <div className="font-display text-lg grad-gold-text mt-2">{money(p.price)}</div>
-                    <button onClick={() => setModalProduct(p)} className="mt-4 text-sm font-medium border border-hair rounded-full px-4 py-2 hover:bg-bone-2 transition-colors focus-ring self-start">
+                    <button onClick={() => { setPaymentMessage(""); setModalProduct(p); }} className="mt-4 text-sm font-medium border border-hair rounded-full px-4 py-2 hover:bg-bone-2 transition-colors focus-ring self-start">
                       Order this
                     </button>
                   </div>
@@ -877,7 +958,7 @@ function CustomerPortal({ onExit }) {
 
       {active === "profile" && (
         <div className="max-w-sm surface p-5 flex flex-col gap-1">
-          {[["Name", "Anita Sharma"], ["Mobile", "+91 98xxxxxx21"], ["Email", "anita.sharma@example.com"], ["KYC status", "Verified"]].map(([l, v]) => (
+          {[["Name", "Akhum Anar"], ["Mobile", "+91 98xxxxxx21"], ["Email", "akhum.anar@example.com"], ["KYC status", "Verified"]].map(([l, v]) => (
             <div key={l} className="flex justify-between text-sm ledger-row py-2.5">
               <span className="text-muted-ink">{l}</span><span>{v}</span>
             </div>
@@ -885,12 +966,12 @@ function CustomerPortal({ onExit }) {
         </div>
       )}
 
-      {modalProduct && <OrderModal product={modalProduct} onClose={() => setModalProduct(null)} onConfirm={() => placeOrder(modalProduct)} />}
+      {modalProduct && <OrderModal product={modalProduct} onClose={() => { setModalProduct(null); setPaymentMessage(""); }} onConfirm={() => placeOrder(modalProduct)} paymentLoading={paymentLoading} paymentMessage={paymentMessage} isDemo={isDemo} />}
     </PortalShell>
   );
 }
 
-function OrderModal({ product, onClose, onConfirm }) {
+function OrderModal({ product, onClose, onConfirm, paymentLoading, paymentMessage, isDemo }) {
   const sched = buildSchedule(product.price);
   const unit = product.metal === "Gold" ? "g" : product.weight >= 1000 ? "kg" : "g";
   return (
@@ -908,10 +989,14 @@ function OrderModal({ product, onClose, onConfirm }) {
           <div className="flex justify-between px-4 py-3 ledger-row text-sm"><span>Advance due today (20%)</span><span className="font-display grad-gold-text">{money(sched.advance)}</span></div>
           <div className="flex justify-between px-4 py-3 text-sm"><span>10 monthly instalments of</span><span className="font-display">~{money(sched.instalments[0].amount)}</span></div>
         </div>
-        <p className="text-xs text-muted-ink mb-5 leading-relaxed">
-          Confirming books this order and generates your instalment schedule.
+        <p className="text-xs text-muted-ink mb-3 leading-relaxed">
+          Pay the advance securely with Razorpay. The order and instalment schedule are confirmed after payment.
         </p>
-        <PrimaryButton onClick={onConfirm} className="w-full text-center py-3">Confirm and pay advance</PrimaryButton>
+        {isDemo && <div className="text-xs text-rust mb-3">Live payments are disabled in demo mode.</div>}
+        {paymentMessage && <div role="alert" className="text-xs text-rust mb-3">{paymentMessage}</div>}
+        <PrimaryButton onClick={onConfirm} disabled={paymentLoading || isDemo} className="w-full text-center py-3">
+          {paymentLoading ? "Opening secure checkout..." : isDemo ? "Demo payments disabled" : "Pay advance with Razorpay"}
+        </PrimaryButton>
       </div>
     </div>
   );
@@ -931,7 +1016,7 @@ function AgentPortal({ onExit }) {
   const maxCommission = Math.max(...commissionByMonth.map((c) => c.v));
 
   return (
-    <PortalShell title="Associate portal" roleLabel="Associate · Sameer Rao" tabs={tabs} active={active} setActive={setActive} onExit={onExit}>
+    <PortalShell title="Associate portal" roleLabel="Associate · Ato Tara" tabs={tabs} active={active} setActive={setActive} onExit={onExit}>
       {active === "overview" && (
         <div className="flex flex-col gap-8">
           <div className="grid sm:grid-cols-3 gap-4">
@@ -953,7 +1038,7 @@ function AgentPortal({ onExit }) {
       {active === "customers" && (
         <div className="surface">
           <div className="grid grid-cols-3 px-4 py-3 text-xs text-muted-ink bg-bone-2 ledger-row"><span>Customer</span><span>Active orders</span><span className="text-right">Outstanding</span></div>
-          {[["Anita Sharma", 2, 62736], ["Rakesh Gupta", 1, 125472], ["Meera Patel", 1, 0], ["Tanvi Reddy", 1, 7536]].map((c) => (
+          {[["Akhum Anar", 2, 62736], ["Grace", 1, 125472], ["Meleto", 1, 0], ["Wete", 1, 7536]].map((c) => (
             <div key={c[0]} className="grid grid-cols-3 px-4 py-3 text-sm ledger-row items-center">
               <span>{c[0]}</span><span>{c[1]}</span><span className="text-right font-display">{c[2] ? money(c[2]) : "Settled"}</span>
             </div>
@@ -972,7 +1057,7 @@ function AgentPortal({ onExit }) {
               <span>L{d.level}</span><span>{d.psv ? money(d.psv) : "—"}</span><span className="text-right font-display">{d.tsv ? money(d.tsv) : "—"}</span>
             </div>
           ))}
-          <div className="px-4 py-3 text-xs text-muted-ink">Inactive members (e.g. Divya Kapoor) don't generate upline incentive until they become productive.</div>
+          <div className="px-4 py-3 text-xs text-muted-ink">Inactive members (e.g. Grace) don't generate upline incentive until they become productive.</div>
         </div>
       )}
 
@@ -1159,17 +1244,18 @@ function AdminPortal({ onExit }) {
 function App() {
   const [view, setView] = useState("landing");
   const [loginRole, setLoginRole] = useState("customer");
+  const [isDemo, setIsDemo] = useState(false);
 
   const goLogin = (role) => { setLoginRole(role); setView("login"); };
-  const enterPortal = (role) => setView(role);
-  const exitPortal = () => setView("landing");
+  const enterPortal = (role, demo = false) => { setIsDemo(demo); setView(role); };
+  const exitPortal = () => { setIsDemo(false); setView("landing"); };
 
   return (
     <div className="min-h-screen">
       <Fonts />
       {view === "landing" && <Landing goLogin={goLogin} />}
       {view === "login" && <Login initialRole={loginRole} onEnter={enterPortal} onBack={() => setView("landing")} />}
-      {view === "customer" && <CustomerPortal onExit={exitPortal} />}
+      {view === "customer" && <CustomerPortal onExit={exitPortal} isDemo={isDemo} />}
       {view === "agent" && <AgentPortal onExit={exitPortal} />}
       {view === "admin" && <AdminPortal onExit={exitPortal} />}
     </div>

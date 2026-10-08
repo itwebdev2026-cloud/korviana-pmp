@@ -1,0 +1,4 @@
+project_id = "korviana-pmp"
+
+[functions.razorpay-payments]
+verify_jwt = true

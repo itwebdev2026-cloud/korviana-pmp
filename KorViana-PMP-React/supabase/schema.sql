@@ -9,11 +9,27 @@ create table if not exists public.profiles (
   email text,
   phone text,
   role text not null default 'customer' check (role in ('customer', 'associate', 'admin')),
+  is_master boolean not null default false check (not is_master or role = 'admin'),
   kyc_status text not null default 'pending' check (kyc_status in ('pending', 'submitted', 'verified', 'rejected')),
   associate_id uuid references public.profiles(id) on delete set null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+alter table public.profiles add column if not exists is_master boolean not null default false;
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conrelid = 'public.profiles'::regclass
+      and conname = 'profiles_master_requires_admin'
+  ) then
+    alter table public.profiles
+      add constraint profiles_master_requires_admin check (not is_master or role = 'admin');
+  end if;
+end;
+$$;
 
 create table if not exists public.products (
   id uuid primary key default gen_random_uuid(),
@@ -126,8 +142,9 @@ language plpgsql
 security invoker
 as $$
 begin
-  if old.role <> new.role and auth.uid() is not null and not public.is_admin() then
-    raise exception 'Only an administrator can change a profile role';
+  if (old.role <> new.role or old.is_master <> new.is_master)
+    and auth.uid() is not null and not public.is_admin() then
+    raise exception 'Only an administrator can change a profile role or master access';
   end if;
   return new;
 end;

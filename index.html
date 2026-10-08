@@ -191,16 +191,90 @@ input::placeholder { opacity: 1; color: inherit; }
 .lg\:grid-cols-3{grid-template-columns:repeat(3,minmax(0,1fr));}
 .lg\:grid-cols-4{grid-template-columns:repeat(4,minmax(0,1fr));}
 }
+.brochure-menu{position:relative;}
+.brochure-menu summary{display:flex;align-items:center;gap:0.25rem;cursor:pointer;list-style:none;}
+.brochure-menu summary::-webkit-details-marker{display:none;}
+.brochure-chevron{transform:rotate(90deg);transition:transform 150ms ease;}
+.brochure-menu[open] .brochure-chevron{transform:rotate(-90deg);}
+.brochure-dropdown{position:absolute;top:calc(100% + 0.75rem);left:0;z-index:40;display:grid;min-width:10rem;padding:0.375rem;border:1px solid #E4DDC9;border-radius:8px;background:#FFFFFE;box-shadow:0 8px 20px rgba(21,19,15,0.12);}
+.brochure-dropdown a{padding:0.625rem 0.75rem;border-radius:4px;}
+.brochure-dropdown a:hover,.brochure-dropdown a:focus-visible{background:#EFE9DA;outline:none;}
+.brochure-menu-mobile .brochure-dropdown{position:static;min-width:0;margin-top:0.5rem;border:0;border-left:1px solid #E4DDC9;border-radius:0;padding:0 0 0 0.5rem;background:transparent;box-shadow:none;}
 </style>
 <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+window.__SUPABASE_CONFIG__ = {
+  url: "https://zgdjpsrpykgvxlxtvorx.supabase.co",
+  publishableKey: "sb_publishable_fPJAg0ZwyI3M0-60JjaP6w_xPcJWFlS",
+};
+</script>
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 </head>
 <body class="bg-bone">
 <div id="root"></div>
 <script type="text/babel" data-type="module">
 const { useState } = React;
+const supabaseClient = window.supabase.createClient(
+  window.__SUPABASE_CONFIG__.url,
+  window.__SUPABASE_CONFIG__.publishableKey
+);
+let razorpayScriptPromise;
+
+function loadRazorpay() {
+  if (window.Razorpay) return Promise.resolve();
+  if (razorpayScriptPromise) return razorpayScriptPromise;
+  razorpayScriptPromise = new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = "https://checkout.razorpay.com/v1/checkout.js";
+    script.onload = resolve;
+    script.onerror = () => reject(new Error("Razorpay checkout could not be loaded."));
+    document.head.appendChild(script);
+  });
+  return razorpayScriptPromise;
+}
+
+async function payWithRazorpay(sku) {
+  const { data: order, error } = await supabaseClient.functions.invoke("razorpay-payments", {
+    body: { action: "create", sku },
+  });
+  if (error) throw new Error(order?.error || error.message || "Could not start checkout.");
+  await loadRazorpay();
+  if (!order?.keyId || !order?.razorpayOrderId) throw new Error("Razorpay is not configured correctly.");
+
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const finish = (callback, value) => {
+      if (settled) return;
+      settled = true;
+      callback(value);
+    };
+    const checkout = new window.Razorpay({
+      key: order.keyId,
+      amount: order.amount,
+      currency: order.currency,
+      name: "KorViana Precious Metal Program",
+      description: `Advance payment for ${sku}`,
+      order_id: order.razorpayOrderId,
+      handler: async (response) => {
+        const { data: verified, error: verifyError } = await supabaseClient.functions.invoke("razorpay-payments", {
+          body: { action: "verify", ...response },
+        });
+        if (verifyError) {
+          finish(reject, new Error(verified?.error || verifyError.message || "Payment verification failed."));
+          return;
+        }
+        finish(resolve, { ...order, ...verified });
+      },
+      modal: { ondismiss: () => finish(reject, new Error("Payment was cancelled.")) },
+    });
+    checkout.on("payment.failed", (event) => {
+      finish(reject, new Error(event.error?.description || "Payment failed. Please try again."));
+    });
+    checkout.open();
+  });
+}
 
 const svgBase = { fill: "none", stroke: "currentColor", strokeWidth: "1.8", strokeLinecap: "round", strokeLinejoin: "round" };
 const Menu = ({ size = 18, className = "" }) => (<svg width={size} height={size} viewBox="0 0 24 24" {...svgBase} className={className}><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/></svg>);
@@ -359,6 +433,7 @@ const Fonts = () => (
     }
     .btn-primary:hover { transform: translateY(-1px); filter: brightness(1.06); box-shadow: 0 14px 30px -10px rgba(179,135,47,0.65); }
     .btn-primary:active { transform: translateY(0); }
+    .btn-primary:disabled { cursor: not-allowed; opacity: .65; transform: none; filter: none; box-shadow: none; }
 
     .btn-ghost { transition: background-color .2s ease, border-color .2s ease, transform .2s ease; }
     .btn-ghost:hover { transform: translateY(-1px); }
@@ -404,7 +479,7 @@ const LOGO = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAABOYAAATmCAYAAACF/K4q
 
 const money = (n) => "₹" + n.toLocaleString("en-IN");
 
-function buildSchedule(total) {
+function buildSchedule(total, mockHistory = true) {
   const advance = Math.round(total * 0.2);
   const balance = total - advance;
   const per = Math.round(balance / 10);
@@ -413,7 +488,7 @@ function buildSchedule(total) {
     advance,
     instalments: months.map((m, i) => ({
       no: i + 1, month: m + " 2027", amount: i === 9 ? balance - per * 9 : per,
-      status: i < 3 ? "paid" : i === 3 ? "due" : "upcoming",
+      status: mockHistory ? (i < 3 ? "paid" : i === 3 ? "due" : "upcoming") : "upcoming",
     })),
   };
 }
@@ -492,8 +567,8 @@ const ProgressBar = ({ pct, dark }) => (
   </div>
 );
 
-const PrimaryButton = ({ children, onClick, className = "", type = "button" }) => (
-  <button type={type} onClick={onClick}
+const PrimaryButton = ({ children, onClick, className = "", type = "button", disabled = false }) => (
+  <button type={type} onClick={onClick} disabled={disabled}
     className={`btn-primary pill font-body text-sm font-medium px-5 py-2.5 focus-ring ${className}`}>
     {children}
   </button>
@@ -565,8 +640,16 @@ function Landing({ goLogin }) {
           </div>
           <nav className="hidden md:flex items-center gap-8 text-sm">
             <a href="#how" className="hover:text-gold-deep transition-colors">How it works</a>
-            <a href="#catalogue" className="hover:text-gold-deep transition-colors">Catalogue</a>
-            <a href="#associates" className="hover:text-gold-deep transition-colors">For associates</a>
+            <a href="about.html" className="hover:text-gold-deep transition-colors">About</a>
+            <details className="brochure-menu">
+              <summary className="hover:text-gold-deep transition-colors">
+                Brochure <ChevronRight size={14} className="brochure-chevron" />
+              </summary>
+              <div className="brochure-dropdown">
+                <a href="#catalogue">Purchase</a>
+                <a href="#associates">Associates</a>
+              </div>
+            </details>
           </nav>
           <div className="hidden md:flex items-center gap-3">
             <GhostButton onClick={() => goLogin("customer")}>Sign in</GhostButton>
@@ -579,8 +662,16 @@ function Landing({ goLogin }) {
         {menuOpen && (
           <div className="md:hidden border-t border-hair px-5 py-4 flex flex-col gap-3 glass-nav">
             <a href="#how" onClick={() => setMenuOpen(false)}>How it works</a>
-            <a href="#catalogue" onClick={() => setMenuOpen(false)}>Catalogue</a>
-            <a href="#associates" onClick={() => setMenuOpen(false)}>For associates</a>
+            <a href="about.html" onClick={() => setMenuOpen(false)}>About</a>
+            <details className="brochure-menu brochure-menu-mobile">
+              <summary>
+                Brochure <ChevronRight size={14} className="brochure-chevron" />
+              </summary>
+              <div className="brochure-dropdown">
+                <a href="#catalogue" onClick={() => setMenuOpen(false)}>Purchase</a>
+                <a href="#associates" onClick={() => setMenuOpen(false)}>Associates</a>
+              </div>
+            </details>
             <GhostButton onClick={() => goLogin("customer")} className="w-full text-center">Sign in</GhostButton>
             <PrimaryButton onClick={() => goLogin("agent")} className="w-full text-center">Become an associate</PrimaryButton>
           </div>
@@ -666,9 +757,6 @@ function Landing({ goLogin }) {
                 </div>
                 <div className="font-display text-lg mb-2">{title} login</div>
                 <p className="text-sm text-muted-ink leading-relaxed flex-1">{desc}</p>
-                <button onClick={() => goLogin(role)} className="mt-5 text-sm font-medium text-gold-deep flex items-center gap-1 hover:gap-2 transition-all focus-ring">
-                  Sign in <ChevronRight size={16} />
-                </button>
               </div>
             ))}
           </div>
@@ -702,32 +790,58 @@ function Login({ initialRole, onEnter, onBack }) {
   const [message, setMessage] = useState("");
   const roles = [["customer", "Customer", UserCircle], ["agent", "Associate", Network], ["admin", "Admin", ShieldCheck]];
 
+  async function issueOtp(contact) {
+    const options = { shouldCreateUser: role === "customer" };
+    return supabaseClient.auth.signInWithOtp(
+      contactMethod === "email" ? { email: contact, options } : { phone: contact, options }
+    );
+  }
+
   async function sendOtp(e) {
     e.preventDefault();
     setLoading(true);
     setMessage("");
 
     const config = window.__SUPABASE_CONFIG__;
-    const contact = contactMethod === "email" ? email.trim() : phone.trim();
-    if (!config?.url || !config?.publishableKey) {
+    const contact = contactMethod === "email" ? email.trim().toLowerCase() : phone.trim();
+    try {
+      if (!config?.url || !config?.publishableKey) {
+        setMessage("Supabase authentication is not configured for this site.");
+        return;
+      }
+
+      const { error } = await issueOtp(contact);
+
+      if (error) {
+        setMessage(error.message);
+        return;
+      }
+
+      setOtpSent(true);
+      setMessage(`OTP sent to your ${contactMethod === "email" ? "email" : "mobile number"}.`);
+    } catch {
+      setMessage("Unable to reach Supabase. Check your connection and project URL, then try again.");
+    } finally {
       setLoading(false);
-      setMessage("Supabase authentication is not configured for this site.");
-      return;
     }
+  }
 
-    const client = window.supabase.createClient(config.url, config.publishableKey);
-    const { error } = await client.auth.signInWithOtp(
-      contactMethod === "email" ? { email: contact } : { phone: contact }
-    );
-
-    setLoading(false);
-    if (error) {
-      setMessage(error.message);
-      return;
+  async function resendOtp() {
+    setLoading(true);
+    setMessage("");
+    const contact = contactMethod === "email" ? email.trim().toLowerCase() : phone.trim();
+    try {
+      const { error } = await issueOtp(contact);
+      if (error) {
+        setMessage(error.message);
+        return;
+      }
+      setMessage(`A new OTP was sent to your ${contactMethod === "email" ? "email" : "mobile number"}.`);
+    } catch {
+      setMessage("Unable to reach Supabase. Check your connection and project URL, then try again.");
+    } finally {
+      setLoading(false);
     }
-
-    setOtpSent(true);
-    setMessage(`OTP sent to your ${contactMethod === "email" ? "email" : "mobile number"}.`);
   }
 
   async function verifyOtp(e) {
@@ -737,46 +851,54 @@ function Login({ initialRole, onEnter, onBack }) {
 
     const config = window.__SUPABASE_CONFIG__;
     const contact = contactMethod === "email" ? email.trim() : phone.trim();
-    if (!config?.url || !config?.publishableKey) {
+    try {
+      if (!config?.url || !config?.publishableKey) {
+        setMessage("Supabase authentication is not configured for this site.");
+        return;
+      }
+
+      const { error } = await supabaseClient.auth.verifyOtp({
+        ...(contactMethod === "email" ? { email: contact, type: "email" } : { phone: contact, type: "sms" }),
+        token: otp.trim(),
+      });
+
+      if (error) {
+        setMessage(error.message);
+        return;
+      }
+
+      const { data: { user }, error: userError } = await supabaseClient.auth.getUser();
+      if (userError || !user) {
+        setMessage(userError?.message || "OTP verified, but no signed-in user was found. Please try again.");
+        return;
+      }
+      const { data: profile, error: profileError } = await supabaseClient
+        .from("profiles")
+        .select("role, is_master")
+        .eq("id", user.id)
+        .single();
+
+      if (profileError || !profile) {
+        await supabaseClient.auth.signOut();
+        setMessage("Your account profile is not ready yet. Please contact an administrator.");
+        return;
+      }
+
+      const requestedRole = role === "agent" ? "associate" : role;
+      const canAccessAllPortals = profile.role === "admin" && profile.is_master === true;
+      if (!canAccessAllPortals && profile.role !== requestedRole) {
+        await supabaseClient.auth.signOut();
+        const actualRole = profile.role === "associate" ? "Associate" : profile.role[0].toUpperCase() + profile.role.slice(1);
+        setMessage(`This account is registered as ${actualRole}. Choose the matching login type.`);
+        return;
+      }
+
+      onEnter(canAccessAllPortals ? role : profile.role === "associate" ? "agent" : profile.role, false);
+    } catch {
+      setMessage("Unable to reach Supabase. Check your connection and project URL, then try again.");
+    } finally {
       setLoading(false);
-      setMessage("Supabase authentication is not configured for this site.");
-      return;
     }
-
-    const client = window.supabase.createClient(config.url, config.publishableKey);
-    const { error } = await client.auth.verifyOtp({
-      ...(contactMethod === "email" ? { email: contact, type: "email" } : { phone: contact, type: "sms" }),
-      token: otp.trim(),
-    });
-
-    setLoading(false);
-    if (error) {
-      setMessage(error.message);
-      return;
-    }
-
-    const { data: { user } } = await client.auth.getUser();
-    const { data: profile, error: profileError } = await client
-      .from("profiles")
-      .select("role")
-      .eq("id", user.id)
-      .single();
-
-    if (profileError || !profile) {
-      await client.auth.signOut();
-      setMessage("Your account profile is not ready yet. Please contact an administrator.");
-      return;
-    }
-
-    const requestedRole = role === "agent" ? "associate" : role;
-    if (profile.role !== requestedRole) {
-      await client.auth.signOut();
-      const actualRole = profile.role === "associate" ? "Associate" : profile.role[0].toUpperCase() + profile.role.slice(1);
-      setMessage(`This account is registered as ${actualRole}. Choose the matching login type.`);
-      return;
-    }
-
-    onEnter(profile.role === "associate" ? "agent" : profile.role);
   }
 
   return (
@@ -822,11 +944,11 @@ function Login({ initialRole, onEnter, onBack }) {
                   className="auth-input w-full border text-bone px-3 focus-ring" />
               ) : (
                 <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+91 98765 43210" required autoComplete="tel"
-                  pattern="\\+[1-9]\\d{7,14}" title="Use international format, for example +919876543210"
+                  pattern="\+[1-9]\d{7,14}" title="Use international format, for example +919876543210"
                   className="auth-input w-full border text-bone px-3 focus-ring" />
               )}
             </div>
-            <PrimaryButton type="submit" className="w-full mt-1 text-center py-2.5 text-sm">
+            <PrimaryButton type="submit" disabled={loading} className="w-full mt-1 text-center py-2.5 text-sm">
               {loading ? "Sending OTP..." : `Send OTP to ${roles.find((r) => r[0] === role)[1]}`}
             </PrimaryButton>
           </form>
@@ -839,15 +961,27 @@ function Login({ initialRole, onEnter, onBack }) {
                 className="auth-input w-full border text-bone px-3 focus-ring" />
               <div className="text-[10px] text-muted-bone mt-1">OTP sent to {contactMethod === "email" ? email : phone}</div>
             </div>
-            <PrimaryButton type="submit" className="w-full text-center py-2 text-xs">
+            <PrimaryButton type="submit" disabled={loading} className="w-full text-center py-2 text-xs">
               {loading ? "Verifying..." : `Verify & enter ${roles.find((r) => r[0] === role)[1]}`}
             </PrimaryButton>
-            <button type="button" onClick={() => { setOtpSent(false); setOtp(""); setMessage(""); }}
+            <button type="button" disabled={loading} onClick={resendOtp}
+              className="text-xs text-muted-bone hover:text-bone disabled:opacity-50">
+              {loading ? "Please wait..." : "Resend OTP"}
+            </button>
+            <button type="button" disabled={loading} onClick={() => { setOtpSent(false); setOtp(""); setMessage(""); }}
               className="text-xs text-muted-bone hover:text-bone">
               Use a different {contactMethod === "email" ? "email" : "mobile number"}
             </button>
           </form>
         )}
+
+        <div className="mt-3 text-center">
+          <div className="text-[10px] text-muted-bone mb-1">Demo: demo@korviana.local</div>
+          <button type="button" onClick={() => onEnter(role === "agent" ? "agent" : role, true)}
+            className="w-full text-xs text-muted-bone hover:text-bone py-2 transition-colors">
+            Continue with demo login (no OTP)
+          </button>
+        </div>
 
         {message && <div className="text-sm text-center text-muted-bone mt-4">{message}</div>}
       </div>
@@ -922,10 +1056,12 @@ function PortalShell({ title, roleLabel, tabs, active, setActive, onExit, childr
 /* =========================================================================
    CUSTOMER PORTAL
    ========================================================================= */
-function CustomerPortal({ onExit }) {
+function CustomerPortal({ onExit, isDemo }) {
   const [active, setActive] = useState("overview");
   const [orders, setOrders] = useState(initialOrders);
   const [modalProduct, setModalProduct] = useState(null);
+  const [paymentLoading, setPaymentLoading] = useState(false);
+  const [paymentMessage, setPaymentMessage] = useState("");
 
   const outstanding = orders.reduce((sum, o) => sum + o.instalments.filter((i) => i.status !== "paid").reduce((s, i) => s + i.amount, 0), 0);
   const nextDue = orders.flatMap((o) => o.instalments.filter((i) => i.status === "due")).length;
@@ -935,11 +1071,20 @@ function CustomerPortal({ onExit }) {
     ["orders", "My orders", ListChecks], ["payments", "Payments", CreditCard], ["profile", "Profile", UserCircle],
   ];
 
-  const placeOrder = (product) => {
-    const id = "PMP-" + Math.floor(2300 + Math.random() * 90);
-    setOrders((o) => [{ id, item: `${product.metal} · ${product.weight}${product.metal === "Gold" ? "g" : product.weight >= 1000 ? "kg" : "g"}`, total: product.price, ...buildSchedule(product.price) }, ...o]);
-    setModalProduct(null);
-    setActive("orders");
+  const placeOrder = async (product) => {
+    if (isDemo) return;
+    setPaymentLoading(true);
+    setPaymentMessage("");
+    try {
+      const payment = await payWithRazorpay(product.id);
+      setOrders((current) => [{ id: payment.orderNumber, item: `${product.metal} · ${product.weight}${product.metal === "Gold" ? "g" : product.weight >= 1000 ? "kg" : "g"}`, total: product.price, ...buildSchedule(product.price, false) }, ...current]);
+      setModalProduct(null);
+      setActive("orders");
+    } catch (error) {
+      setPaymentMessage(error instanceof Error ? error.message : "Payment could not be completed.");
+    } finally {
+      setPaymentLoading(false);
+    }
   };
 
   return (
@@ -969,7 +1114,7 @@ function CustomerPortal({ onExit }) {
                     <div className="text-sm text-muted-ink">{p.purity}</div>
                     <div className="font-display text-xl mt-1">{p.weight}{p.metal === "Gold" ? "g" : p.weight >= 1000 ? "kg" : "g"} {p.metal}</div>
                     <div className="font-display text-lg grad-gold-text mt-2">{money(p.price)}</div>
-                    <button onClick={() => setModalProduct(p)} className="mt-4 text-sm font-medium border border-hair rounded-full px-4 py-2 hover:bg-bone-2 transition-colors focus-ring self-start">
+                    <button onClick={() => { setPaymentMessage(""); setModalProduct(p); }} className="mt-4 text-sm font-medium border border-hair rounded-full px-4 py-2 hover:bg-bone-2 transition-colors focus-ring self-start">
                       Order this
                     </button>
                   </div>
@@ -1036,12 +1181,12 @@ function CustomerPortal({ onExit }) {
         </div>
       )}
 
-      {modalProduct && <OrderModal product={modalProduct} onClose={() => setModalProduct(null)} onConfirm={() => placeOrder(modalProduct)} />}
+      {modalProduct && <OrderModal product={modalProduct} onClose={() => { setModalProduct(null); setPaymentMessage(""); }} onConfirm={() => placeOrder(modalProduct)} paymentLoading={paymentLoading} paymentMessage={paymentMessage} isDemo={isDemo} />}
     </PortalShell>
   );
 }
 
-function OrderModal({ product, onClose, onConfirm }) {
+function OrderModal({ product, onClose, onConfirm, paymentLoading, paymentMessage, isDemo }) {
   const sched = buildSchedule(product.price);
   const unit = product.metal === "Gold" ? "g" : product.weight >= 1000 ? "kg" : "g";
   return (
@@ -1059,10 +1204,14 @@ function OrderModal({ product, onClose, onConfirm }) {
           <div className="flex justify-between px-4 py-3 ledger-row text-sm"><span>Advance due today (20%)</span><span className="font-display grad-gold-text">{money(sched.advance)}</span></div>
           <div className="flex justify-between px-4 py-3 text-sm"><span>10 monthly instalments of</span><span className="font-display">~{money(sched.instalments[0].amount)}</span></div>
         </div>
-        <p className="text-xs text-muted-ink mb-5 leading-relaxed">
-          Confirming books this order and generates your instalment schedule.
+        <p className="text-xs text-muted-ink mb-3 leading-relaxed">
+          Pay the advance securely with Razorpay. The order and instalment schedule are confirmed after payment.
         </p>
-        <PrimaryButton onClick={onConfirm} className="w-full text-center py-3">Confirm and pay advance</PrimaryButton>
+        {isDemo && <div className="text-xs text-rust mb-3">Live payments are disabled in demo mode.</div>}
+        {paymentMessage && <div role="alert" className="text-xs text-rust mb-3">{paymentMessage}</div>}
+        <PrimaryButton onClick={onConfirm} disabled={paymentLoading || isDemo} className="w-full text-center py-3">
+          {paymentLoading ? "Opening secure checkout..." : isDemo ? "Demo payments disabled" : "Pay advance with Razorpay"}
+        </PrimaryButton>
       </div>
     </div>
   );
@@ -1310,17 +1459,18 @@ function AdminPortal({ onExit }) {
 function App() {
   const [view, setView] = useState("landing");
   const [loginRole, setLoginRole] = useState("customer");
+  const [isDemo, setIsDemo] = useState(false);
 
   const goLogin = (role) => { setLoginRole(role); setView("login"); };
-  const enterPortal = (role) => setView(role);
-  const exitPortal = () => setView("landing");
+  const enterPortal = (role, demo = false) => { setIsDemo(demo); setView(role); };
+  const exitPortal = () => { setIsDemo(false); setView("landing"); };
 
   return (
     <div className="min-h-screen">
       <Fonts />
       {view === "landing" && <Landing goLogin={goLogin} />}
       {view === "login" && <Login initialRole={loginRole} onEnter={enterPortal} onBack={() => setView("landing")} />}
-      {view === "customer" && <CustomerPortal onExit={exitPortal} />}
+      {view === "customer" && <CustomerPortal onExit={exitPortal} isDemo={isDemo} />}
       {view === "agent" && <AgentPortal onExit={exitPortal} />}
       {view === "admin" && <AdminPortal onExit={exitPortal} />}
     </div>

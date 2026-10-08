@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>About KorViana</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=IBM+Plex+Sans:wght@400;500;600&display=swap');
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #F6F2E9; color: #15130F; font-family: 'IBM Plex Sans', sans-serif; line-height: 1.6; }
+    a { color: inherit; }
+    .site-header { border-bottom: 1px solid #E4DDC9; background: rgba(246,242,233,.9); }
+    .header-inner, main { width: min(100% - 40px, 1152px); margin: 0 auto; }
+    .header-inner { min-height: 200px; display: flex; align-items: center; justify-content: space-between; gap: 24px; }
+    .logo { display: block; width: auto; height: 176px; object-fit: contain; }
+    .home-link { color: #7A5A1E; font-size: 14px; font-weight: 500; text-decoration: none; }
+    .home-link:hover { text-decoration: underline; }
+    main { padding: 64px 0 72px; }
+    .intro { max-width: 760px; padding-bottom: 36px; }
+    .eyebrow { margin: 0 0 12px; color: #7A5A1E; font-size: 12px; font-weight: 600; }
+    h1, h2, h3 { margin: 0; font-family: 'Fraunces', serif; font-weight: 500; line-height: 1.2; }
+    h1 { max-width: 700px; font-size: 40px; }
+    h2 { font-size: 24px; }
+    h3 { margin-bottom: 12px; font-size: 22px; }
+    .lead { margin: 18px 0 0; color: #57534A; font-size: 17px; }
+    .entities { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 40px; }
+    article, .approach, .contact { border-top: 1px solid #D9D1BC; padding: 24px 0; }
+    .section-label { margin: 0 0 10px; color: #7A5A1E; font-size: 12px; font-weight: 600; }
+    article p, .approach p { margin: 0; color: #57534A; font-size: 14px; }
+    article p + p { margin-top: 16px; }
+    .approach, .contact { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 40px; margin-top: 8px; }
+    .contact address { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; color: #57534A; font-size: 14px; font-style: normal; }
+    .contact address a { color: #7A5A1E; text-decoration: none; }
+    .contact address a:hover { text-decoration: underline; }
+    @media (max-width: 680px) {
+      .header-inner, main { width: min(100% - 32px, 1152px); }
+      .header-inner { min-height: 168px; }
+      .logo { height: 144px; }
+      main { padding: 44px 0 52px; }
+      h1 { font-size: 34px; }
+      .entities, .approach, .contact { grid-template-columns: 1fr; gap: 8px; }
+      .approach, .contact { margin-top: 0; }
+      .lead { font-size: 15px; }
+    }
+  </style>
+</head>
+<body>
+  <header class="site-header">
+    <div class="header-inner">
+      <a href="index.html" aria-label="KorViana home"><img class="logo" src="KorViana-PMP-React/public/korviana-logo.png" alt="KorViana Ventures LLP" /></a>
+      <a class="home-link" href="index.html">Back to home</a>
+    </div>
+  </header>
+  <main>
+    <section class="intro">
+      <p class="eyebrow">ABOUT KORVIANA</p>
+      <h1>Responsibility with a sense of purpose.</h1>
+      <p class="lead">Two distinct entities, one shared commitment to trust, dignity and meaningful progress.</p>
+    </section>
+    <section class="entities" aria-label="KorViana organisations">
+      <article>
+        <p class="section-label">PUBLIC BENEFIT</p>
+        <h3>KorViana Welfare Society</h3>
+        <p>KorViana Welfare Society is a community-focused organisation based in Chumoukedima, Nagaland. It is committed to supporting people through practical welfare and development initiatives.</p>
+        <p>The Society works in community welfare, healthcare support, education, livelihood development, women and youth empowerment, child welfare, financial awareness and other public-benefit activities. Its focus is helping individuals and families become more confident, capable and self-reliant while contributing to stronger, more resilient communities.</p>
+      </article>
+      <article>
+        <p class="section-label">COMMERCIAL ENTERPRISE</p>
+        <h3>KorViana Ventures LLP</h3>
+        <p>KorViana Ventures LLP is the commercial and business entity associated with the KorViana name. It has been created to undertake lawful trading, distribution, services and other commercial activities across different sectors.</p>
+        <p>Its approach is based on transparency, proper documentation, responsible business practices and reliable customer service. It may operate in precious metals, consumer products, trading, distribution, e-commerce, business facilitation and other allied activities, subject to applicable laws and approvals.</p>
+      </article>
+    </section>
+    <section class="approach">
+      <div>
+        <p class="section-label">OUR APPROACH</p>
+        <h2>Distinct roles. Shared values.</h2>
+      </div>
+      <p>KorViana Welfare Society and KorViana Ventures LLP have different legal and operational roles. The Welfare Society focuses on social and public-benefit activities. KorViana Ventures LLP handles commercial and business activities. Both are guided by the same values of trust, responsibility, dignity and long-term development.</p>
+    </section>
+    <section class="contact">
+      <div>
+        <p class="section-label">CONNECT WITH KORVIANA</p>
+        <h2>Let's stay in touch.</h2>
+      </div>
+      <address>
+        <span>Ward-10, North Town, Chumoukedima, Nagaland - 797103</span>
+        <a href="mailto:korvianamail@gmail.com">korvianamail@gmail.com</a>
+        <a href="tel:+916909307616">+91-6909307616</a>
+        <a href="https://www.korviana.in/" target="_blank" rel="noreferrer">www.korviana.in</a>
+      </address>
+    </section>
+  </main>
+</body>
+</html>
