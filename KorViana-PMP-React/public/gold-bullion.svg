@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" fill="none">
+  <defs>
+    <linearGradient id="backdrop" x1="72" y1="24" x2="568" y2="344" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFDF7"/>
+      <stop offset="1" stop-color="#F2EBD9"/>
+    </linearGradient>
+    <linearGradient id="goldTop" x1="190" y1="104" x2="458" y2="216" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F9E6A6"/>
+      <stop offset=".48" stop-color="#DDBB66"/>
+      <stop offset="1" stop-color="#B38732"/>
+    </linearGradient>
+    <linearGradient id="goldFace" x1="194" y1="167" x2="445" y2="289" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#E9CA78"/>
+      <stop offset=".55" stop-color="#C89A42"/>
+      <stop offset="1" stop-color="#A87928"/>
+    </linearGradient>
+    <linearGradient id="goldSide" x1="445" y1="167" x2="474" y2="268" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#B38732"/>
+      <stop offset="1" stop-color="#805B20"/>
+    </linearGradient>
+    <filter id="shadow" x="125" y="61" width="397" height="284" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse">
+      <feGaussianBlur stdDeviation="13"/>
+    </filter>
+  </defs>
+  <rect width="640" height="360" rx="28" fill="url(#backdrop)"/>
+  <circle cx="504" cy="82" r="52" fill="#E8D8B1" fill-opacity=".26"/>
+  <circle cx="130" cy="273" r="62" fill="#E8D8B1" fill-opacity=".2"/>
+  <ellipse cx="325" cy="293" rx="164" ry="24" fill="#715526" fill-opacity=".2" filter="url(#shadow)"/>
+  <path d="m190 130 77-45h195l-26 48-61 47H219z" fill="url(#goldTop)" stroke="#B38732" stroke-width="3"/>
+  <path d="m219 180 156 0 61-47 26 104-83 55-182-10z" fill="url(#goldFace)" stroke="#A87928" stroke-width="3" stroke-linejoin="round"/>
+  <path d="m436 133 26-48 21 102-21 50-26-105Z" fill="url(#goldSide)" stroke="#956A25" stroke-width="3" stroke-linejoin="round"/>
+  <path d="m219 180 156 0-22 115-176-13 42-102Z" fill="#F2D98F" fill-opacity=".24"/>
+  <path d="m248 166 48-28h95l-32 27h-111Z" fill="#FFF2C4" fill-opacity=".52"/>
+  <text x="329" y="205" fill="#76551E" font-family="Georgia,serif" font-size="24" font-weight="700" text-anchor="middle" letter-spacing="2">KORVIANA</text>
+  <text x="329" y="235" fill="#76551E" font-family="Arial,sans-serif" font-size="15" font-weight="700" text-anchor="middle" letter-spacing="3">GOLD 999.9</text>
+  <text x="329" y="260" fill="#76551E" font-family="Arial,sans-serif" font-size="12" text-anchor="middle" letter-spacing="2">24 CARAT · PURE GOLD</text>
+  <circle cx="459" cy="273" r="35" fill="#C99D45" stroke="#F0D88F" stroke-width="4"/>
+  <circle cx="459" cy="273" r="27" stroke="#8E6928" stroke-opacity=".72" stroke-width="2"/>
+  <path d="M451 255h16v4h-6v26h-4v-26h-6v-4Z" fill="#76551E"/>
+</svg>

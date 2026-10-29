@@ -4,7 +4,7 @@ The checkout uses a Supabase Edge Function to create Razorpay orders, verify che
 
 ## Setup
 
-1. Apply `supabase/schema.sql` in the Supabase SQL Editor if this is a new project. Apply `supabase/migrations/20261008_razorpay_catalog_products.sql` in the SQL Editor as well. If your local and remote migration histories are already in sync, you can instead run:
+1. Apply `supabase/schema.sql` in the Supabase SQL Editor if this is a new project. Apply `supabase/migrations/20261029_multi_item_cart.sql` to an existing project to enable multi-item orders. If your local and remote migration histories are already in sync, you can instead run:
 
    ```powershell
    supabase link --project-ref <your-project-ref>
@@ -28,6 +28,7 @@ The checkout uses a Supabase Edge Function to create Razorpay orders, verify che
 5. After testing, replace the Edge Function secrets with live-mode credentials and deploy the function again.
 
 The browser receives only the Razorpay key ID. The Edge Function uses the secret key to create and capture gateway orders and verifies the signed checkout response before marking a payment successful.
+Cart items and their checkout-time prices are stored in `order_items`; the order total and advance payment cover the full cart.
 
 ## OTP Login Setup
 

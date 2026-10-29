@@ -56,6 +56,21 @@ create table if not exists public.orders (
   updated_at timestamptz not null default now()
 );
 
+create table if not exists public.order_items (
+  id uuid primary key default gen_random_uuid(),
+  order_id uuid not null references public.orders(id) on delete cascade,
+  product_id uuid not null references public.products(id) on delete restrict,
+  sku text not null,
+  metal text not null check (metal in ('gold', 'silver')),
+  purity text not null,
+  weight_grams numeric(12, 3) not null check (weight_grams > 0),
+  quantity integer not null check (quantity between 1 and 99),
+  unit_price numeric(14, 2) not null check (unit_price > 0),
+  total_amount numeric(14, 2) not null check (total_amount > 0 and total_amount = unit_price * quantity),
+  created_at timestamptz not null default now(),
+  unique (order_id, sku)
+);
+
 create table if not exists public.installments (
   id uuid primary key default gen_random_uuid(),
   order_id uuid not null references public.orders(id) on delete cascade,
@@ -108,6 +123,7 @@ create table if not exists public.notifications (
 create index if not exists profiles_associate_id_idx on public.profiles(associate_id);
 create index if not exists orders_customer_id_idx on public.orders(customer_id);
 create index if not exists orders_associate_id_idx on public.orders(associate_id);
+create index if not exists order_items_order_id_idx on public.order_items(order_id);
 create index if not exists installments_order_id_idx on public.installments(order_id);
 create index if not exists payments_customer_id_idx on public.payments(customer_id);
 create index if not exists commissions_associate_id_idx on public.commissions(associate_id);
@@ -194,6 +210,7 @@ for each row execute function public.prevent_profile_role_change();
 alter table public.profiles enable row level security;
 alter table public.products enable row level security;
 alter table public.orders enable row level security;
+alter table public.order_items enable row level security;
 alter table public.installments enable row level security;
 alter table public.payments enable row level security;
 alter table public.commissions enable row level security;
@@ -235,6 +252,21 @@ with check (customer_id = auth.uid());
 
 create policy "Admins manage orders"
 on public.orders for all to authenticated
+using (public.is_admin())
+with check (public.is_admin());
+
+create policy "Users can view relevant order items"
+on public.order_items for select to authenticated
+using (
+  exists (
+    select 1 from public.orders o
+    where o.id = order_id
+      and (o.customer_id = auth.uid() or o.associate_id = auth.uid() or public.is_admin())
+  )
+);
+
+create policy "Admins manage order items"
+on public.order_items for all to authenticated
 using (public.is_admin())
 with check (public.is_admin());
 

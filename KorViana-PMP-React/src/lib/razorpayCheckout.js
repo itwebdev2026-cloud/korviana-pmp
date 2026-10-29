@@ -16,9 +16,9 @@ function loadRazorpay() {
   return scriptPromise;
 }
 
-export async function payWithRazorpay(sku) {
+export async function payWithRazorpay(items, expectedTotal) {
   const { data: order, error } = await supabase.functions.invoke('razorpay-payments', {
-    body: { action: 'create', sku },
+    body: { action: 'create', items, expectedTotal },
   });
   if (error) throw new Error(order?.error || error.message || 'Could not start checkout.');
 
@@ -38,7 +38,7 @@ export async function payWithRazorpay(sku) {
       amount: order.amount,
       currency: order.currency,
       name: 'KorViana Precious Metal Program',
-      description: `Advance payment for ${sku}`,
+      description: `Advance payment for ${items.length} product denomination${items.length === 1 ? '' : 's'}`,
       order_id: order.razorpayOrderId,
       handler: async (response) => {
         const { data: verified, error: verifyError } = await supabase.functions.invoke('razorpay-payments', {

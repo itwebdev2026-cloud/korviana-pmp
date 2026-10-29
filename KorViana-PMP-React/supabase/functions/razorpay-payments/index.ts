@@ -32,23 +32,49 @@ const razorpayRequest = async (path: string, method: string, body?: unknown) => 
   return result;
 };
 
-const createPaymentOrder = async (admin: ReturnType<typeof createClient>, userId: string, sku: string) => {
-  const { data: product, error: productError } = await admin
+type RequestedItem = { sku: string; quantity: number };
+
+const createPaymentOrder = async (
+  admin: ReturnType<typeof createClient>,
+  userId: string,
+  items: RequestedItem[],
+  expectedTotal?: number,
+) => {
+  const { data: products, error: productError } = await admin
     .from("products")
-    .select("id, sku, price, active")
-    .eq("sku", sku)
-    .eq("active", true)
-    .single();
+    .select("id, sku, metal, purity, weight_grams, price")
+    .in("sku", items.map((item) => item.sku))
+    .eq("active", true);
 
-  if (productError || !product) throw new Error("This product is not available for checkout.");
+  if (productError || !products || products.length !== items.length) {
+    throw new Error("One or more products are no longer available for checkout.");
+  }
 
-  const totalPaise = Math.round(Number(product.price) * 100);
+  const orderLines = items.map((item) => {
+    const product = products.find((candidate) => candidate.sku === item.sku);
+    if (!product) throw new Error("One or more products are no longer available for checkout.");
+    const unitPricePaise = Math.round(Number(product.price) * 100);
+    if (!Number.isSafeInteger(unitPricePaise) || unitPricePaise <= 0) {
+      throw new Error("A product has an invalid price and cannot be purchased.");
+    }
+    return {
+      product,
+      quantity: item.quantity,
+      unitPricePaise,
+      lineTotalPaise: unitPricePaise * item.quantity,
+    };
+  });
+  const totalPaise = orderLines.reduce((total, item) => total + item.lineTotalPaise, 0);
+  if (!Number.isSafeInteger(totalPaise)) throw new Error("The cart total is too large to process.");
+  if (expectedTotal !== undefined && Math.round(expectedTotal * 100) !== totalPaise) {
+    throw new Error("Product prices changed. Refresh the catalogue and review your cart again.");
+  }
   const advancePaise = Math.round(totalPaise * 0.2);
   const { data: order, error: orderError } = await admin
     .from("orders")
     .insert({
       customer_id: userId,
-      product_id: product.id,
+      product_id: orderLines[0].product.id,
       total_amount: totalPaise / 100,
       advance_amount: advancePaise / 100,
       status: "pending",
@@ -58,12 +84,31 @@ const createPaymentOrder = async (admin: ReturnType<typeof createClient>, userId
 
   if (orderError || !order) throw new Error("Could not create your order.");
 
+  const { error: orderItemsError } = await admin.from("order_items").insert(
+    orderLines.map(({ product, quantity, unitPricePaise, lineTotalPaise }) => ({
+      order_id: order.id,
+      product_id: product.id,
+      sku: product.sku,
+      metal: product.metal,
+      purity: product.purity,
+      weight_grams: product.weight_grams,
+      quantity,
+      unit_price: unitPricePaise / 100,
+      total_amount: lineTotalPaise / 100,
+    })),
+  );
+  if (orderItemsError) {
+    const { error: cancelError } = await admin.from("orders").update({ status: "cancelled" }).eq("id", order.id);
+    if (cancelError) throw new Error("Could not save your cart or cancel the pending order. Contact support.");
+    throw new Error("Could not save your cart items.");
+  }
+
   try {
     const razorpayOrder = await razorpayRequest("/orders", "POST", {
       amount: advancePaise,
       currency: "INR",
       receipt: order.id,
-      notes: { supabase_order_id: order.id, sku },
+      notes: { supabase_order_id: order.id, item_count: String(orderLines.length) },
     });
 
     const { error: paymentError } = await admin.from("payments").insert({
@@ -84,9 +129,11 @@ const createPaymentOrder = async (admin: ReturnType<typeof createClient>, userId
       currency: "INR",
       orderId: order.id,
       orderNumber: order.order_number,
+      totalAmount: totalPaise / 100,
     };
   } catch (error) {
-    await admin.from("orders").update({ status: "cancelled" }).eq("id", order.id);
+    const { error: cancelError } = await admin.from("orders").update({ status: "cancelled" }).eq("id", order.id);
+    if (cancelError) throw new Error("Checkout failed and the pending order could not be canceled. Contact support.");
     throw error;
   }
 };
@@ -221,9 +268,31 @@ Deno.serve(async (request) => {
     }
 
     const body = await request.json();
+    if (!body || typeof body !== "object" || Array.isArray(body)) {
+      return json({ error: "Invalid checkout request." }, 400);
+    }
     if (body.action === "create") {
-      if (typeof body.sku !== "string") return json({ error: "A product is required." }, 400);
-      const result = await createPaymentOrder(admin, user.id, body.sku);
+      const requestedItems: RequestedItem[] = Array.isArray(body.items)
+        ? body.items
+        : typeof body.sku === "string" ? [{ sku: body.sku, quantity: 1 }] : [];
+      if (requestedItems.length === 0 || requestedItems.length > 50) {
+        return json({ error: "Add between 1 and 50 product denominations to your cart." }, 400);
+      }
+      const seenSkus = new Set<string>();
+      for (const item of requestedItems) {
+        if (!item || typeof item.sku !== "string" || !item.sku.trim()
+          || !Number.isSafeInteger(item.quantity) || item.quantity < 1 || item.quantity > 99) {
+          return json({ error: "Each cart item must have a valid product and a quantity from 1 to 99." }, 400);
+        }
+        item.sku = item.sku.trim();
+        if (seenSkus.has(item.sku)) return json({ error: "Each product may only appear once in the cart." }, 400);
+        seenSkus.add(item.sku);
+      }
+      const expectedTotal = body.expectedTotal;
+      if (expectedTotal !== undefined && (typeof expectedTotal !== "number" || !Number.isFinite(expectedTotal) || expectedTotal <= 0)) {
+        return json({ error: "The expected cart total is invalid." }, 400);
+      }
+      const result = await createPaymentOrder(admin, user.id, requestedItems, expectedTotal);
       return json(result);
     }
 
