@@ -470,15 +470,8 @@ function Landing({ goLogin }) {
           <nav className="hidden md:flex items-center gap-8 text-sm">
             <a href="#how" className="hover:text-gold-deep transition-colors">How it works</a>
             <a href="/about.html" className="hover:text-gold-deep transition-colors">About</a>
-            <details className="brochure-menu">
-              <summary className="hover:text-gold-deep transition-colors">
-                Brochure <ChevronRight size={14} className="brochure-chevron" />
-              </summary>
-              <div className="brochure-dropdown">
-                <a href="#catalogue">Purchase</a>
-                <a href="#associates">Associates</a>
-              </div>
-            </details>
+            <a href="/purchase.html" className="hover:text-gold-deep transition-colors">Purchase</a>
+            <a href="/associates.html" className="hover:text-gold-deep transition-colors">Associates</a>
           </nav>
           <div className="hidden md:flex items-center gap-3">
             <GhostButton onClick={() => goLogin("customer")}>Sign in</GhostButton>
@@ -492,15 +485,8 @@ function Landing({ goLogin }) {
           <div className="md:hidden border-t border-hair px-5 py-4 flex flex-col gap-3 glass-nav">
             <a href="#how" onClick={() => setMenuOpen(false)}>How it works</a>
             <a href="/about.html" onClick={() => setMenuOpen(false)}>About</a>
-            <details className="brochure-menu brochure-menu-mobile">
-              <summary>
-                Brochure <ChevronRight size={14} className="brochure-chevron" />
-              </summary>
-              <div className="brochure-dropdown">
-                <a href="#catalogue" onClick={() => setMenuOpen(false)}>Purchase</a>
-                <a href="#associates" onClick={() => setMenuOpen(false)}>Associates</a>
-              </div>
-            </details>
+            <a href="/purchase.html" onClick={() => setMenuOpen(false)}>Purchase</a>
+            <a href="/associates.html" onClick={() => setMenuOpen(false)}>Associates</a>
             <GhostButton onClick={() => goLogin("customer")} className="w-full text-center">Sign in</GhostButton>
             <PrimaryButton onClick={() => goLogin("agent")} className="w-full text-center">Become an associate</PrimaryButton>
           </div>
@@ -574,26 +560,6 @@ function Landing({ goLogin }) {
         </div>
       </section>
 
-      <section id="associates" className="border-t border-hair">
-        <div className="max-w-6xl mx-auto px-5 sm:px-8 py-14 sm:py-20">
-          <h2 className="font-display text-2xl sm:text-3xl mb-10 max-w-md">Three portals, one program</h2>
-          <div className="grid md:grid-cols-3 gap-4">
-            {[
-              ["customer", "Customer", UserCircle, "Order metal, pay instalments, track every receipt."],
-              ["agent", "Associate", Network, "Manage customers, grow a downline, watch commission land."],
-              ["admin", "Admin", ShieldCheck, "Control pricing, rules, payouts and the full audit trail."],
-            ].map(([role, title, Icon, desc]) => (
-              <div key={role} className="surface p-6 sm:p-7 flex flex-col lift">
-                <div className="w-10 h-10 rounded-full grad-gold flex items-center justify-center mb-4">
-                  <Icon size={18} className="text-ink" />
-                </div>
-                <div className="font-display text-lg mb-2">{title} login</div>
-                <p className="text-sm text-muted-ink leading-relaxed flex-1">{desc}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
 
       <footer className="border-t border-hair-dark bg-ink text-muted-bone">
         <div className="max-w-6xl mx-auto px-5 sm:px-8 py-10 flex flex-col sm:flex-row justify-between gap-4 text-sm items-start sm:items-center">
@@ -1404,6 +1370,26 @@ function AgentPortal({ onExit }) {
 function AdminPortal({ onExit }) {
   const [active, setActive] = useState("overview");
   const [rates, setRates] = useState(RATES);
+  const [rateMessage, setRateMessage] = useState("");
+
+  useEffect(() => {
+    let isCurrent = true;
+    supabase.from("metal_rates").select("metal, rate_per_gram").then(({ data }) => {
+      if (!isCurrent || !data?.length) return;
+      setRates((r) => data.reduce((next, row) => (
+        next[row.metal] ? { ...next, [row.metal]: { ...next[row.metal], rate: Number(row.rate_per_gram) } } : next
+      ), r));
+    });
+    return () => { isCurrent = false; };
+  }, []);
+
+  const publishRate = async (key) => {
+    const { error } = await supabase.from("metal_rates").upsert(
+      { metal: key, rate_per_gram: rates[key].rate, updated_at: new Date().toISOString() },
+      { onConflict: "metal" },
+    );
+    setRateMessage(error ? `Could not publish ${key} rate: ${error.message}` : `${key === "gold" ? "Gold" : "Silver"} rate published.`);
+  };
   const tabs = [
     ["overview", "Overview", LayoutGrid], ["orders", "Orders", ListChecks],
     ["associates", "Associates", Users], ["pricing", "Pricing", Coins],
@@ -1479,11 +1465,12 @@ function AdminPortal({ onExit }) {
                 <input type="number" value={rates[key].rate}
                   onChange={(e) => setRates((r) => ({ ...r, [key]: { ...r[key], rate: Number(e.target.value) } }))}
                   className="border border-hair rounded-xl px-3 py-2 text-sm w-32 focus-ring" />
-                <GhostButton onClick={() => {}} className="ml-auto">Publish rate</GhostButton>
+                <GhostButton onClick={() => publishRate(key)} className="ml-auto">Publish rate</GhostButton>
               </div>
             </div>
           ))}
-          <p className="text-xs text-muted-ink">Publishing updates the catalogue and any orders configured to use daily-rate pricing.</p>
+          {rateMessage && <p role="status" className="text-sm">{rateMessage}</p>}
+          <p className="text-xs text-muted-ink">Publishing updates the purchase page, catalogue and any orders configured to use daily-rate pricing.</p>
         </div>
       )}
 
