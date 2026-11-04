@@ -295,6 +295,8 @@ const Fonts = () => (
 const RATES = { gold: { rate: 7842, change: 0.4 }, silver: { rate: 94.2, change: -0.2 } };
 const GOLD_WEIGHTS = [1, 2, 5, 10, 20, 50, 100];
 const SILVER_WEIGHTS = [50, 100, 200, 500, 1000];
+const RATE_CHART_WEIGHTS = { gold: [1, 2, 5, 10, 50, 100], silver: SILVER_WEIGHTS };
+const formatRatePrice = (rate, weight) => `₹ ${(rate * weight).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 const goldProducts = GOLD_WEIGHTS.map((w) => ({ id: `AU-${w}`, metal: "Gold", purity: "24K · 99.99%", weight: w, price: Math.round(w * RATES.gold.rate) }));
 const silverProducts = SILVER_WEIGHTS.map((w) => ({ id: `AG-${w}`, metal: "Silver", purity: "99.99%", weight: w, price: Math.round((w / 1000) * 1000 * RATES.silver.rate) }));
@@ -413,28 +415,143 @@ const GhostButton = ({ children, onClick, className = "", dark }) => (
 /* =========================================================================
    RATE TICKER
    ========================================================================= */
-const SplitVisual = () => (
-  <div className="surface-dark font-body rise-in rise-in-2 p-6 sm:p-7">
-    <div className="text-xs text-muted-bone mb-6">How every order splits</div>
-    <div className="flex items-end gap-1 h-32 mb-5">
-      <div className="grad-metal-bar rounded-t-lg" style={{ width: "26%", height: "42%" }} />
-      <div className="bg-ink-2 border-t border-hair-dark rounded-t-lg" style={{ width: "74%", height: "100%" }} />
-    </div>
-    <div className="flex justify-between text-sm">
-      <div>
-        <div className="grad-gold-text font-display text-xl">20%</div>
-        <div className="text-muted-bone text-xs mt-1">Paid as advance,<br />today</div>
+const MetalRateTable = ({ metal, rate }) => {
+  const isGold = metal === "gold";
+  const name = isGold ? "Gold 999 (24 Karat Pure Gold)" : "Silver 999 (Pure Silver)";
+  const weights = RATE_CHART_WEIGHTS[metal];
+
+  return (
+    <section className="surface overflow-hidden" aria-label={`${name} rate table`}>
+      <h3
+        className="px-4 py-3 text-sm sm:text-base font-semibold text-white"
+        style={{
+          background: isGold ? "linear-gradient(110deg, #B3872F, #D0A322)" : "linear-gradient(110deg, #74818D, #A8B1BB)",
+          color: "#FFFFFF",
+          fontFamily: "var(--kv-ui)",
+          textAlign: "left",
+        }}
+      >
+        {name}
+      </h3>
+      <div className="overflow-x-auto">
+        <table className="w-full text-xs sm:text-sm">
+          <thead>
+            <tr className="text-[10px] uppercase tracking-wide text-muted-ink bg-bone-2">
+              <th scope="col" className="px-4 py-3 text-left font-semibold">Denomination</th>
+              <th scope="col" className="px-4 py-3 text-right font-semibold">Price</th>
+            </tr>
+          </thead>
+          <tbody>
+            {weights.map((weight) => (
+              <tr key={weight} className="ledger-row">
+                <th scope="row" className="px-4 py-3 text-left font-medium whitespace-nowrap">
+                  {weight === 1000 ? "1 Kilogram" : `${weight} Gram${weight === 1 ? "" : "s"}`}
+                </th>
+                <td className="px-4 py-3 text-right font-semibold whitespace-nowrap">
+                  {formatRatePrice(rate, weight)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
-      <div className="text-right">
-        <div className="text-bone font-display text-xl">80%</div>
-        <div className="text-muted-bone text-xs mt-1">Spread over<br />10 monthly instalments</div>
+    </section>
+  );
+};
+
+const SplitVisual = () => {
+  const [rates, setRates] = useState(null);
+  const [updatedAt, setUpdatedAt] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [refresh, setRefresh] = useState(0);
+
+  useEffect(() => {
+    let isCurrent = true;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+    const loadRates = async () => {
+      setLoading(true);
+      setError("");
+      const { data, error: queryError } = await supabase
+        .from("metal_rates")
+        .select("metal, rate_per_gram, updated_at")
+        .in("metal", ["gold", "silver"])
+        .abortSignal(controller.signal);
+
+      if (!isCurrent) return;
+      if (queryError) {
+        setError(controller.signal.aborted ? "Rate request timed out. Check your connection and try again." : queryError.message);
+        setLoading(false);
+        return;
+      }
+
+      const nextRates = Object.fromEntries(
+        (data ?? []).map((row) => [row.metal, Number(row.rate_per_gram)]),
+      );
+      if (!Number.isFinite(nextRates.gold) || !Number.isFinite(nextRates.silver)) {
+        setError("Gold and silver rates are not both available yet.");
+        setLoading(false);
+        return;
+      }
+      const latestUpdate = (data ?? []).reduce((latest, row) => (
+        !latest || new Date(row.updated_at) > new Date(latest) ? row.updated_at : latest
+      ), null);
+      setRates(nextRates);
+      setUpdatedAt(latestUpdate);
+      setLoading(false);
+    };
+
+    loadRates().catch((loadError) => {
+      if (!isCurrent) return;
+      setError(controller.signal.aborted
+        ? "Rate request timed out. Check your connection and try again."
+        : loadError instanceof Error ? loadError.message : "Published rates could not be loaded.");
+      setLoading(false);
+    }).finally(() => clearTimeout(timeoutId));
+
+    return () => {
+      isCurrent = false;
+      clearTimeout(timeoutId);
+      controller.abort();
+    };
+  }, [refresh]);
+
+  return (
+    <div className="surface font-body rise-in rise-in-2 p-4 sm:p-5">
+      <div className="flex items-center justify-between gap-3 px-1 pb-4">
+        <h2 className="font-body text-sm font-semibold">Rate Chart</h2>
+        {updatedAt && (
+          <div className="text-[10px] sm:text-xs text-muted-ink text-right">
+            Date: {new Date(updatedAt).toLocaleString("en-IN", {
+              day: "numeric",
+              month: "long",
+              year: "numeric",
+              hour: "numeric",
+              minute: "2-digit",
+            })}
+          </div>
+        )}
       </div>
+      {loading && <div role="status" className="py-8 text-center text-xs text-muted-ink">Loading published rates...</div>}
+      {!loading && error && (
+        <div role="alert" className="py-5 text-xs text-muted-ink">
+          <div>Price chart could not be loaded: {error}</div>
+          <button type="button" onClick={() => setRefresh((attempt) => attempt + 1)} className="mt-2 underline focus-ring">Try again</button>
+        </div>
+      )}
+      {!loading && !error && rates && (
+        <div className="grid md:grid-cols-2 gap-4">
+          <MetalRateTable metal="gold" rate={rates.gold} />
+          <MetalRateTable metal="silver" rate={rates.silver} />
+          <div className="md:col-span-2 border border-hair rounded-lg px-3 py-3 text-center text-[10px] text-muted-ink">
+            Prices are calculated from the latest published rate per gram.
+          </div>
+        </div>
+      )}
     </div>
-    <div className="border-t border-hair-dark mt-6 pt-4 flex items-center gap-2 text-xs text-muted-bone">
-      <Lock size={12} /> Sign in to see today's gold and silver rate and get a priced order.
-    </div>
-  </div>
-);
+  );
+};
 
 const RateTickerLight = () => (
   <div className="surface">
