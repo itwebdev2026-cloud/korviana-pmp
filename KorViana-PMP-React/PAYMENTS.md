@@ -4,12 +4,14 @@ The checkout uses a Supabase Edge Function to create Razorpay orders, verify che
 
 ## Setup
 
-1. Apply `supabase/schema.sql` in the Supabase SQL Editor if this is a new project, then apply all files in `supabase/migrations` in timestamp order. Existing projects must apply all pending migrations, including `20261104_ibja_rate_pricing.sql`, which adds IBJA base rates, editable denomination markups, calculated product prices, and rate history. If your local and remote migration histories are already in sync, you can instead run:
+1. Apply `supabase/schema.sql` in the Supabase SQL Editor if this is a new project, then apply all files in `supabase/migrations` in timestamp order. If your local and remote migration histories are already in sync, you can instead run:
 
    ```powershell
    supabase link --project-ref <your-project-ref>
    supabase db push
    ```
+
+   The price chart and admin pricing editor currently store rates in the current browser's local storage; they do not require the IBJA pricing tables or update `products`. These browser-local rates are not shared with visitors or devices and do not change server-side checkout prices. Shared, server-authoritative pricing requires a backend pricing flow.
 
 2. In Razorpay Dashboard, enable Test Mode and copy the test key ID and key secret. Add them as Supabase Edge Function secrets:
 

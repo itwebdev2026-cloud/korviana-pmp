@@ -12,6 +12,11 @@ import {
   RATE_UNITS,
   rateMarkupKey,
 } from './lib/ratePricing';
+import {
+  getLocalMetalPricingState,
+  saveLocalMetalPricing,
+  subscribeToLocalMetalPricing,
+} from './lib/localMetalPricing';
 
 const svgBase = { fill: "none", stroke: "currentColor", strokeWidth: "1.8", strokeLinecap: "round", strokeLinejoin: "round" };
 const Menu = ({ size = 18, className = "" }) => (<svg width={size} height={size} viewBox="0 0 24 24" {...svgBase} className={className}><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/></svg>);
@@ -499,122 +504,53 @@ const MetalRateTable = ({ metal, ibjaRate, markups }) => {
 };
 
 const SplitVisual = () => {
-  const [pricing, setPricing] = useState(null);
-  const [updatedAt, setUpdatedAt] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [refresh, setRefresh] = useState(0);
+  const [pricingState, setPricingState] = useState(getLocalMetalPricingState);
+  const { pricing, error } = pricingState;
 
   useEffect(() => {
-    let isCurrent = true;
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000);
-    const loadRates = async () => {
-      setLoading(true);
-      setError("");
-      const [settingsResult, markupsResult] = await Promise.all([
-        supabase
-          .from("metal_rate_settings")
-          .select("metal, ibja_rate, base_unit_grams, updated_at")
-          .abortSignal(controller.signal),
-        supabase
-          .from("metal_rate_markups")
-          .select("metal, weight_grams, markup_percent")
-          .abortSignal(controller.signal),
-      ]);
-
-      if (!isCurrent) return;
-      if (settingsResult.error || markupsResult.error) {
-        const queryError = settingsResult.error || markupsResult.error;
-        setError(controller.signal.aborted ? "Rate request timed out. Check your connection and try again." : queryError.message);
-        setLoading(false);
-        return;
-      }
-
-      const settings = Object.fromEntries(
-        (settingsResult.data ?? []).map((row) => [row.metal, {
-          ibjaRate: Number(row.ibja_rate),
-          baseUnitGrams: Number(row.base_unit_grams),
-          updatedAt: row.updated_at,
-        }]),
-      );
-      const nextMarkups = Object.fromEntries(
-        (markupsResult.data ?? []).map((row) => [
-          rateMarkupKey(row.metal, Number(row.weight_grams)),
-          Number(row.markup_percent),
-        ]),
-      );
-      const hasAllDenominations = Object.entries(RATE_DENOMINATIONS).every(([metal, denominations]) =>
-        denominations.every(({ weightGrams }) => Number.isFinite(nextMarkups[rateMarkupKey(metal, weightGrams)])),
-      );
-      if (
-        !Number.isFinite(settings.gold?.ibjaRate)
-        || !Number.isFinite(settings.silver?.ibjaRate)
-        || !hasAllDenominations
-      ) {
-        setError("Published IBJA rates and all denomination markups are not available yet.");
-        setLoading(false);
-        return;
-      }
-      const latestUpdate = [settings.gold.updatedAt, settings.silver.updatedAt]
-        .reduce((latest, value) => (!latest || new Date(value) > new Date(latest) ? value : latest), null);
-      setPricing({ settings, markups: nextMarkups });
-      setUpdatedAt(latestUpdate);
-      setLoading(false);
-    };
-
-    loadRates().catch((loadError) => {
-      if (!isCurrent) return;
-      setError(controller.signal.aborted
-        ? "Rate request timed out. Check your connection and try again."
-        : loadError instanceof Error ? loadError.message : "Published pricing could not be loaded.");
-      setLoading(false);
-    }).finally(() => clearTimeout(timeoutId));
-
-    return () => {
-      isCurrent = false;
-      clearTimeout(timeoutId);
-      controller.abort();
-    };
-  }, [refresh]);
+    const unsubscribe = subscribeToLocalMetalPricing(
+      (nextPricing) => setPricingState({ pricing: nextPricing, error: "" }),
+      (loadError) => setPricingState({ pricing: null, error: loadError.message }),
+    );
+    return unsubscribe;
+  }, []);
 
   return (
     <div className="surface font-body rise-in rise-in-2 p-4 sm:p-5">
       <div className="flex items-center justify-between gap-3 px-1 pb-4">
         <h2 className="font-body text-sm font-semibold">Rate Chart</h2>
-        {updatedAt && (
+        {pricing && (
           <div className="text-[10px] sm:text-xs text-muted-ink text-right">
-            Date: {new Date(updatedAt).toLocaleString("en-IN", {
+            {pricing.updatedAt ? `Date: ${new Date(pricing.updatedAt).toLocaleString("en-IN", {
               day: "numeric",
               month: "long",
               year: "numeric",
               hour: "numeric",
               minute: "2-digit",
-            })}
+            })}` : "Starter rates · verify before use"}
           </div>
         )}
       </div>
-      {loading && <div role="status" className="py-8 text-center text-xs text-muted-ink">Loading published rates...</div>}
-      {!loading && error && (
+      {error && (
         <div role="alert" className="py-5 text-xs text-muted-ink">
           <div>Price chart could not be loaded: {error}</div>
-          <button type="button" onClick={() => setRefresh((attempt) => attempt + 1)} className="mt-2 underline focus-ring">Try again</button>
+          <button type="button" onClick={() => setPricingState(getLocalMetalPricingState())} className="mt-2 underline focus-ring">Try again</button>
         </div>
       )}
-      {!loading && !error && pricing && (
+      {!error && pricing && (
         <div className="grid md:grid-cols-2 gap-4">
           <MetalRateTable
             metal="gold"
-            ibjaRate={pricing.settings.gold.ibjaRate}
+            ibjaRate={pricing.rates.gold}
             markups={pricing.markups}
           />
           <MetalRateTable
             metal="silver"
-            ibjaRate={pricing.settings.silver.ibjaRate}
+            ibjaRate={pricing.rates.silver}
             markups={pricing.markups}
           />
           <div className="md:col-span-2 border border-hair rounded-lg px-3 py-3 text-center text-[10px] text-muted-ink">
-            No tax has been added; tax treatment has not been verified.
+            Rates are stored in this browser only. No tax has been added; tax treatment has not been verified.
           </div>
         </div>
       )}
@@ -623,41 +559,28 @@ const SplitVisual = () => {
 };
 
 const RateTickerLight = () => {
-  const [rates, setRates] = useState(null);
-  const [error, setError] = useState("");
+  const [pricingState, setPricingState] = useState(getLocalMetalPricingState);
+  const { pricing, error } = pricingState;
 
   useEffect(() => {
-    let isCurrent = true;
-    supabase.from("metal_rate_settings").select("metal, ibja_rate").then(({ data, error: queryError }) => {
-      if (!isCurrent) return;
-      if (queryError) {
-        setError(queryError.message);
-        return;
-      }
-      const nextRates = Object.fromEntries((data ?? []).map((row) => [row.metal, Number(row.ibja_rate)]));
-      if (!Number.isFinite(nextRates.gold) || !Number.isFinite(nextRates.silver)) {
-        setError("Both IBJA rates are not available.");
-        return;
-      }
-      setRates(nextRates);
-    }).catch((loadError) => {
-      if (isCurrent) setError(loadError instanceof Error ? loadError.message : "IBJA rates could not be loaded.");
-    });
-    return () => { isCurrent = false; };
+    const unsubscribe = subscribeToLocalMetalPricing(
+      (nextPricing) => setPricingState({ pricing: nextPricing, error: "" }),
+      (loadError) => setPricingState({ pricing: null, error: loadError.message }),
+    );
+    return unsubscribe;
   }, []);
 
   return (
     <div className="surface">
       {error && <div role="alert" className="px-4 py-3 text-xs text-rust">IBJA rates could not be loaded: {error}</div>}
-      {!error && !rates && <div role="status" className="px-4 py-3 text-xs text-muted-ink">Loading IBJA rates...</div>}
-      {rates && ["gold", "silver"].map((metal) => (
+      {pricing && ["gold", "silver"].map((metal) => (
         <div key={metal} className="flex items-center justify-between px-4 py-3 ledger-row">
           <div>
             <div className="font-display">{metal === "gold" ? "Gold 999" : "Silver 999"}</div>
             <div className="text-xs text-muted-ink">IBJA · per {RATE_UNITS[metal].label}</div>
           </div>
           <div className="font-display grad-gold-text">
-            {formatRatePrice(rates[metal])}
+            {formatRatePrice(pricing.rates[metal])}
           </div>
         </div>
       ))}
@@ -1579,77 +1502,55 @@ function AgentPortal({ onExit }) {
    ========================================================================= */
 function AdminPortal({ onExit }) {
   const [active, setActive] = useState("overview");
-  const [ibjaRates, setIbjaRates] = useState({ gold: "", silver: "" });
-  const [markups, setMarkups] = useState(DEFAULT_RATE_MARKUPS);
-  const [pricingLoading, setPricingLoading] = useState(true);
-  const [pricingLoadError, setPricingLoadError] = useState("");
+  const [pricingState, setPricingState] = useState(getLocalMetalPricingState);
+  const initialPricing = pricingState.pricing;
+  const [ibjaRates, setIbjaRates] = useState(() => ({
+    gold: String(initialPricing?.rates.gold ?? DEFAULT_IBJA_RATES.gold),
+    silver: String(initialPricing?.rates.silver ?? DEFAULT_IBJA_RATES.silver),
+  }));
+  const [markups, setMarkups] = useState(() => Object.fromEntries(
+    Object.entries(initialPricing?.markups ?? DEFAULT_RATE_MARKUPS)
+      .map(([key, value]) => [key, String(value)]),
+  ));
   const [pricingError, setPricingError] = useState("");
-  const [historyError, setHistoryError] = useState("");
   const [pricingSaving, setPricingSaving] = useState(false);
-  const [pricingUpdatedAt, setPricingUpdatedAt] = useState(null);
-  const [pricingHistory, setPricingHistory] = useState([]);
-  const [pricingRefresh, setPricingRefresh] = useState(0);
   const [rateMessage, setRateMessage] = useState("");
+  const pricingLoadError = pricingState.error;
+  const pricingUpdatedAt = pricingState.pricing?.updatedAt ?? null;
+  const pricingHistory = pricingState.pricing?.history ?? [];
 
   useEffect(() => {
-    let isCurrent = true;
-    const loadPricing = async () => {
-      setPricingLoading(true);
-      setPricingLoadError("");
-      const [settingsResult, markupsResult, historyResult] = await Promise.all([
-        supabase.from("metal_rate_settings").select("metal, ibja_rate, updated_at"),
-        supabase.from("metal_rate_markups").select("metal, weight_grams, markup_percent"),
-        supabase
-          .from("metal_pricing_history")
-          .select("id, metal, weight_grams, ibja_rate, base_unit_grams, markup_percent, raw_rate, final_rate, recorded_at")
-          .order("recorded_at", { ascending: false })
-          .limit(33),
-      ]);
-
-      if (!isCurrent) return;
-      if (settingsResult.error || markupsResult.error) {
-        setPricingLoadError((settingsResult.error || markupsResult.error).message);
-        setPricingLoading(false);
-        return;
-      }
-
-      const settings = Object.fromEntries(
-        (settingsResult.data ?? []).map((row) => [row.metal, row]),
-      );
-      const loadedMarkups = Object.fromEntries(
-        (markupsResult.data ?? []).map((row) => [
-          rateMarkupKey(row.metal, Number(row.weight_grams)),
-          String(row.markup_percent),
-        ]),
-      );
-      const hasAllDenominations = Object.entries(RATE_DENOMINATIONS).every(([metal, denominations]) =>
-        denominations.every(({ weightGrams }) => Number.isFinite(Number(loadedMarkups[rateMarkupKey(metal, weightGrams)]))),
-      );
-      if (!settings.gold || !settings.silver || !hasAllDenominations) {
-        setPricingLoadError("IBJA rates or denomination markups are incomplete. Apply the rate-pricing database migration.");
-        setPricingLoading(false);
-        return;
-      }
-
+    const applyPricing = (pricing) => {
+      setPricingState({ pricing, error: "" });
       setIbjaRates({
-        gold: String(settings.gold.ibja_rate),
-        silver: String(settings.silver.ibja_rate),
+        gold: String(pricing.rates.gold),
+        silver: String(pricing.rates.silver),
       });
-      setMarkups(loadedMarkups);
-      setPricingUpdatedAt([settings.gold.updated_at, settings.silver.updated_at]
-        .reduce((latest, value) => (!latest || new Date(value) > new Date(latest) ? value : latest), null));
-      setHistoryError(historyResult.error?.message ?? "");
-      setPricingHistory(historyResult.error ? [] : historyResult.data ?? []);
-      setPricingLoading(false);
+      setMarkups(Object.fromEntries(
+        Object.entries(pricing.markups).map(([key, value]) => [key, String(value)]),
+      ));
+    };
+    const handleError = (error) => {
+      setPricingState({ pricing: null, error: error.message });
     };
 
-    loadPricing().catch((loadError) => {
-      if (!isCurrent) return;
-      setPricingLoadError(loadError instanceof Error ? loadError.message : "Pricing could not be loaded.");
-      setPricingLoading(false);
-    });
-    return () => { isCurrent = false; };
-  }, [pricingRefresh]);
+    const unsubscribe = subscribeToLocalMetalPricing(applyPricing, handleError);
+    return unsubscribe;
+  }, []);
+
+  const reloadPricing = () => {
+    const nextState = getLocalMetalPricingState();
+    setPricingState(nextState);
+    if (nextState.pricing) {
+      setIbjaRates({
+        gold: String(nextState.pricing.rates.gold),
+        silver: String(nextState.pricing.rates.silver),
+      });
+      setMarkups(Object.fromEntries(
+        Object.entries(nextState.pricing.markups).map(([key, value]) => [key, String(value)]),
+      ));
+    }
+  };
 
   const savePricing = async () => {
     setPricingError("");
@@ -1690,14 +1591,14 @@ function AdminPortal({ onExit }) {
 
     setPricingSaving(true);
     try {
-      const { error } = await supabase.rpc("save_metal_pricing", {
-        p_gold_ibja_rate: goldRate,
-        p_silver_ibja_rate: silverRate,
-        p_markups: markupRows,
+      saveLocalMetalPricing({
+        rates: { gold: goldRate, silver: silverRate },
+        markups: Object.fromEntries(markupRows.map(({ metal, weight_grams, markup_percent }) => [
+          rateMarkupKey(metal, weight_grams),
+          markup_percent,
+        ])),
       });
-      if (error) throw new Error(error.message);
-      setRateMessage("Rates saved. The customer chart and product prices are updated.");
-      setPricingRefresh((refreshCount) => refreshCount + 1);
+      setRateMessage("Rates saved in this browser. The local price chart and purchase request are updated.");
     } catch (saveError) {
       setPricingError(saveError instanceof Error ? saveError.message : "Pricing could not be saved.");
     } finally {
@@ -1771,14 +1672,13 @@ function AdminPortal({ onExit }) {
 
       {active === "pricing" && (
         <div className="flex flex-col gap-5">
-          {pricingLoading && <div role="status" className="surface p-5 text-sm text-muted-ink">Loading IBJA rates and markup settings...</div>}
           {pricingLoadError && (
             <div role="alert" className="surface p-5 text-sm text-rust">
-              <p>Pricing settings could not be loaded: {pricingLoadError}</p>
-              <button type="button" onClick={() => setPricingRefresh((refreshCount) => refreshCount + 1)} className="mt-3 underline focus-ring">Try again</button>
+              <p>Local pricing settings could not be loaded: {pricingLoadError}</p>
+              <button type="button" onClick={reloadPricing} className="mt-3 underline focus-ring">Try again</button>
             </div>
           )}
-          {!pricingLoading && !pricingLoadError && (
+          {!pricingLoadError && (
             <>
               <div className="grid md:grid-cols-2 gap-4">
                 {["gold", "silver"].map((metal) => (
@@ -1858,27 +1758,29 @@ function AdminPortal({ onExit }) {
 
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <PrimaryButton onClick={savePricing} disabled={pricingSaving}>
-                  {pricingSaving ? "Saving..." : "Save and publish all rates"}
+                  {pricingSaving ? "Saving..." : "Save rates in this browser"}
                 </PrimaryButton>
-                {pricingUpdatedAt && (
-                  <p className="text-xs text-muted-ink">
-                    Last updated: {new Date(pricingUpdatedAt).toLocaleString("en-IN")}
-                  </p>
-                )}
+                <p className="text-xs text-muted-ink">
+                  {pricingUpdatedAt
+                    ? `Last updated: ${new Date(pricingUpdatedAt).toLocaleString("en-IN")}`
+                    : "Starter rates · verify current IBJA rates before use"}
+                </p>
               </div>
               {pricingError && <p role="alert" className="text-sm text-rust">{pricingError}</p>}
               {rateMessage && <p role="status" className="text-sm text-forest">{rateMessage}</p>}
               <p className="text-xs text-muted-ink">
                 Prices use the IBJA base rate and the denomination markup, rounded to the nearest rupee. No tax is added until its treatment is verified.
               </p>
+              <p className="text-xs text-muted-ink">
+                These settings are saved only in this browser and are not shared with visitors or other devices.
+              </p>
 
               <section className="surface overflow-x-auto">
                 <h3 className="font-display px-4 py-3 border-b border-hair">Rate calculation history</h3>
-                {historyError && <p role="alert" className="px-4 py-3 text-xs text-rust">Rate history could not be loaded: {historyError}</p>}
-                {!historyError && pricingHistory.length === 0 && (
-                  <p className="px-4 py-3 text-sm text-muted-ink">No rate calculations have been recorded yet.</p>
+                {pricingHistory.length === 0 && (
+                  <p className="px-4 py-3 text-sm text-muted-ink">No local rate changes saved yet.</p>
                 )}
-                {!historyError && pricingHistory.length > 0 && (
+                {pricingHistory.length > 0 && (
                   <table className="w-full text-xs sm:text-sm">
                     <thead>
                       <tr className="bg-bone-2 text-muted-ink">

@@ -1,10 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
-import { supabase } from './lib/supabaseClient'
 import {
   calculateKorvianaPrice,
   RATE_DENOMINATIONS,
   rateMarkupKey,
 } from './lib/ratePricing'
+import {
+  getLocalMetalPricingState,
+  subscribeToLocalMetalPricing,
+} from './lib/localMetalPricing'
 import './purchase.css'
 
 const weightsByItem = Object.fromEntries(
@@ -33,60 +36,15 @@ function priceFor(denomination, quantity, pricing) {
 }
 
 function PurchasePage() {
-  const [pricing, setPricing] = useState(null)
-  const [pricingLoading, setPricingLoading] = useState(true)
-  const [pricingError, setPricingError] = useState('')
-  const [pricingRefresh, setPricingRefresh] = useState(0)
+  const [pricingState, setPricingState] = useState(getLocalMetalPricingState)
+  const { pricing, error: pricingError } = pricingState
   useEffect(() => {
-    let isCurrent = true
-    const loadPricing = async () => {
-      setPricingLoading(true)
-      setPricingError('')
-      const [settingsResult, markupsResult] = await Promise.all([
-        supabase.from('metal_rate_settings').select('metal, ibja_rate, updated_at'),
-        supabase.from('metal_rate_markups').select('metal, weight_grams, markup_percent'),
-      ])
-      if (!isCurrent) return
-      if (settingsResult.error || markupsResult.error) {
-        setPricingError((settingsResult.error || markupsResult.error).message)
-        setPricingLoading(false)
-        return
-      }
-
-      const settings = Object.fromEntries(
-        (settingsResult.data ?? []).map((row) => [row.metal, row]),
-      )
-      const rates = Object.fromEntries(
-        Object.entries(settings).map(([metal, row]) => [metal, Number(row.ibja_rate)]),
-      )
-      const markups = Object.fromEntries(
-        (markupsResult.data ?? []).map((row) => [
-          rateMarkupKey(row.metal, Number(row.weight_grams)),
-          Number(row.markup_percent),
-        ]),
-      )
-      const hasAllDenominations = Object.entries(RATE_DENOMINATIONS).every(([metal, denominations]) =>
-        denominations.every(({ weightGrams }) => Number.isFinite(markups[rateMarkupKey(metal, weightGrams)])),
-      )
-      if (!Number.isFinite(rates.gold) || !Number.isFinite(rates.silver) || !hasAllDenominations) {
-        setPricingError('IBJA rates or denomination markups are not fully configured.')
-        setPricingLoading(false)
-        return
-      }
-      const updatedAt = Object.values(settings).reduce((latest, row) => (
-        !latest || new Date(row.updated_at) > new Date(latest) ? row.updated_at : latest
-      ), null)
-      setPricing({ rates, markups, updatedAt })
-      setPricingLoading(false)
-    }
-
-    loadPricing().catch((loadError) => {
-      if (!isCurrent) return
-      setPricingError(loadError instanceof Error ? loadError.message : 'Published prices could not be loaded.')
-      setPricingLoading(false)
-    })
-    return () => { isCurrent = false }
-  }, [pricingRefresh])
+    const unsubscribe = subscribeToLocalMetalPricing(
+      (localPricing) => setPricingState({ pricing: localPricing, error: '' }),
+      (loadError) => setPricingState({ pricing: null, error: loadError.message }),
+    )
+    return unsubscribe
+  }, [])
   const [itemType, setItemType] = useState('Gold')
   const [denomination, setDenomination] = useState('')
   const [quantity, setQuantity] = useState('1')
@@ -236,11 +194,10 @@ function PurchasePage() {
           <p>Build a request using the latest IBJA base rates and KorViana denomination markups.</p>
         </section>
 
-        {pricingLoading && <div role="status" className="purchase-panel">Loading published IBJA rates and KorViana markups...</div>}
         {pricingError && (
           <div role="alert" className="purchase-panel purchase-form-message">
             <p>Prices could not be loaded: {pricingError}</p>
-            <button type="button" className="text-action" onClick={() => setPricingRefresh((refreshCount) => refreshCount + 1)}>Try again</button>
+            <button type="button" className="text-action" onClick={() => setPricingState(getLocalMetalPricingState())}>Try again</button>
           </div>
         )}
         {pricing && (
@@ -251,12 +208,14 @@ function PurchasePage() {
                 <h2>Current reference rates</h2>
               </div>
               <span className="purchase-pricing-updated">
-                Updated {pricing.updatedAt ? new Date(pricing.updatedAt).toLocaleString('en-IN') : 'recently'}
+                {pricing.updatedAt
+                  ? `Updated ${new Date(pricing.updatedAt).toLocaleString('en-IN')}`
+                  : 'Starter rates · verify before use'}
               </span>
             </div>
             <p className="purchase-base-rate-note">
               Gold 999: {rupees(pricing.rates.gold)} per 10 grams · Silver 999: {rupees(pricing.rates.silver)} per kilogram.
-              KorViana prices include the listed denomination markup; tax treatment has not been verified.
+              KorViana prices include the listed denomination markup; rates are local to this browser and tax treatment has not been verified.
             </p>
           </section>
         )}
