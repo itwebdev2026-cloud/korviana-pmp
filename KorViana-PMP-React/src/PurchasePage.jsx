@@ -1,34 +1,92 @@
 import { useEffect, useRef, useState } from 'react'
 import { supabase } from './lib/supabaseClient'
+import {
+  calculateKorvianaPrice,
+  RATE_DENOMINATIONS,
+  rateMarkupKey,
+} from './lib/ratePricing'
 import './purchase.css'
 
-const weightsByItem = {
-  Gold: ['1 g', '2 g', '5 g', '10 g', '20 g', '50 g', '100 g'],
-  Silver: ['50 g', '100 g', '200 g', '500 g', '1 kg'],
-}
+const weightsByItem = Object.fromEntries(
+  Object.entries(RATE_DENOMINATIONS).map(([metal, denominations]) => [
+    metal === 'gold' ? 'Gold' : 'Silver',
+    denominations.map(({ weightGrams }) => weightGrams === 1000 ? '1 kg' : `${weightGrams} g`),
+  ]),
+)
 
 const normalizeDenomination = (value) => value.trim().replace(/\s+/g, ' ').toLocaleLowerCase()
 
 const rupees = (value) => `₹${value.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`
 
-function priceFor(denomination, quantity, rates) {
+function priceFor(denomination, quantity, pricing) {
   const match = denomination.trim().match(/^(\d+(?:\.\d+)?)\s*(g|kg)\s+(gold|silver)$/i)
-  const rate = match && rates[match[3].toLowerCase()]
-  if (rate == null) return null
+  if (!match || !pricing) return null
+  const metal = match[3].toLowerCase()
   const grams = Number(match[1]) * (match[2].toLowerCase() === 'kg' ? 1000 : 1)
-  return Math.round(grams * rate * quantity * 100) / 100
+  const unitPrice = calculateKorvianaPrice(
+    metal,
+    pricing.rates[metal],
+    grams,
+    pricing.markups[rateMarkupKey(metal, grams)],
+  )
+  return unitPrice == null ? null : unitPrice * quantity
 }
 
 function PurchasePage() {
-  const [rates, setRates] = useState({})
+  const [pricing, setPricing] = useState(null)
+  const [pricingLoading, setPricingLoading] = useState(true)
+  const [pricingError, setPricingError] = useState('')
+  const [pricingRefresh, setPricingRefresh] = useState(0)
   useEffect(() => {
     let isCurrent = true
-    supabase.from('metal_rates').select('metal, rate_per_gram').then(({ data }) => {
-      if (!isCurrent || !data) return
-      setRates(Object.fromEntries(data.map((row) => [row.metal, Number(row.rate_per_gram)])))
+    const loadPricing = async () => {
+      setPricingLoading(true)
+      setPricingError('')
+      const [settingsResult, markupsResult] = await Promise.all([
+        supabase.from('metal_rate_settings').select('metal, ibja_rate, updated_at'),
+        supabase.from('metal_rate_markups').select('metal, weight_grams, markup_percent'),
+      ])
+      if (!isCurrent) return
+      if (settingsResult.error || markupsResult.error) {
+        setPricingError((settingsResult.error || markupsResult.error).message)
+        setPricingLoading(false)
+        return
+      }
+
+      const settings = Object.fromEntries(
+        (settingsResult.data ?? []).map((row) => [row.metal, row]),
+      )
+      const rates = Object.fromEntries(
+        Object.entries(settings).map(([metal, row]) => [metal, Number(row.ibja_rate)]),
+      )
+      const markups = Object.fromEntries(
+        (markupsResult.data ?? []).map((row) => [
+          rateMarkupKey(row.metal, Number(row.weight_grams)),
+          Number(row.markup_percent),
+        ]),
+      )
+      const hasAllDenominations = Object.entries(RATE_DENOMINATIONS).every(([metal, denominations]) =>
+        denominations.every(({ weightGrams }) => Number.isFinite(markups[rateMarkupKey(metal, weightGrams)])),
+      )
+      if (!Number.isFinite(rates.gold) || !Number.isFinite(rates.silver) || !hasAllDenominations) {
+        setPricingError('IBJA rates or denomination markups are not fully configured.')
+        setPricingLoading(false)
+        return
+      }
+      const updatedAt = Object.values(settings).reduce((latest, row) => (
+        !latest || new Date(row.updated_at) > new Date(latest) ? row.updated_at : latest
+      ), null)
+      setPricing({ rates, markups, updatedAt })
+      setPricingLoading(false)
+    }
+
+    loadPricing().catch((loadError) => {
+      if (!isCurrent) return
+      setPricingError(loadError instanceof Error ? loadError.message : 'Published prices could not be loaded.')
+      setPricingLoading(false)
     })
     return () => { isCurrent = false }
-  }, [])
+  }, [pricingRefresh])
   const [itemType, setItemType] = useState('Gold')
   const [denomination, setDenomination] = useState('')
   const [quantity, setQuantity] = useState('1')
@@ -41,7 +99,7 @@ function PurchasePage() {
   const nextId = useRef(0)
 
   const totalQuantity = items.reduce((total, item) => total + item.quantity, 0)
-  const linePrices = items.map((item) => priceFor(item.denomination, item.quantity, rates))
+  const linePrices = items.map((item) => priceFor(item.denomination, item.quantity, pricing))
   const allPriced = items.length > 0 && linePrices.every((price) => price != null)
   const totalPrice = linePrices.reduce((sum, price) => sum + (price ?? 0), 0)
 
@@ -57,6 +115,10 @@ function PurchasePage() {
     const cleanDenomination = `${weight} ${itemType}`
     if (!Number.isSafeInteger(parsedQuantity) || parsedQuantity <= 0) {
       setFormMessage('Enter a whole-number quantity greater than zero.')
+      return
+    }
+    if (priceFor(cleanDenomination, parsedQuantity, pricing) == null) {
+      setFormMessage('Rates are unavailable or that denomination is not in the published price list.')
       return
     }
 
@@ -92,8 +154,17 @@ function PurchasePage() {
       setFormMessage('Enter a denomination and a whole-number quantity greater than zero.')
       return
     }
+    const existingItem = items.find((item) => item.id === editingId)
+    const existingMetal = existingItem?.denomination.match(/(gold|silver)$/i)?.[1]
+    const pricedDenomination = /(?:gold|silver)$/i.test(cleanDenomination)
+      ? cleanDenomination
+      : `${cleanDenomination} ${existingMetal ?? ''}`.trim()
+    if (priceFor(pricedDenomination, parsedQuantity, pricing) == null) {
+      setFormMessage('That denomination is not in the published price list.')
+      return
+    }
 
-    const normalized = normalizeDenomination(cleanDenomination)
+    const normalized = normalizeDenomination(pricedDenomination)
     setItems((current) => {
       const edited = current.find((item) => item.id === editingId)
       if (!edited) return current
@@ -104,7 +175,7 @@ function PurchasePage() {
         .map((item) => item.id === editingId
           ? {
             ...item,
-            denomination: cleanDenomination,
+            denomination: pricedDenomination,
             quantity: parsedQuantity + (duplicate?.quantity ?? 0),
           }
           : item)
@@ -122,7 +193,7 @@ function PurchasePage() {
 
   const submitRequest = (event) => {
     event.preventDefault()
-    if (items.length === 0) return
+    if (items.length === 0 || !allPriced) return
     const itemLines = items.map((item, index) =>
       `${index + 1}. ${item.denomination} — quantity ${item.quantity}${linePrices[index] != null ? ` — ${rupees(linePrices[index])}` : ''}`)
     const body = [
@@ -162,8 +233,33 @@ function PurchasePage() {
         <section className="purchase-intro">
           <p className="purchase-eyebrow">PURCHASE</p>
           <h1>PURCHASE</h1>
-          <p>Build a request for the gold or silver denominations you need. Prices follow the current rate set by KorViana.</p>
+          <p>Build a request using the latest IBJA base rates and KorViana denomination markups.</p>
         </section>
+
+        {pricingLoading && <div role="status" className="purchase-panel">Loading published IBJA rates and KorViana markups...</div>}
+        {pricingError && (
+          <div role="alert" className="purchase-panel purchase-form-message">
+            <p>Prices could not be loaded: {pricingError}</p>
+            <button type="button" className="text-action" onClick={() => setPricingRefresh((refreshCount) => refreshCount + 1)}>Try again</button>
+          </div>
+        )}
+        {pricing && (
+          <section className="purchase-panel" aria-label="Published base rates">
+            <div className="purchase-section-heading">
+              <div>
+                <p className="purchase-eyebrow">IBJA BASE RATES</p>
+                <h2>Current reference rates</h2>
+              </div>
+              <span className="purchase-pricing-updated">
+                Updated {pricing.updatedAt ? new Date(pricing.updatedAt).toLocaleString('en-IN') : 'recently'}
+              </span>
+            </div>
+            <p className="purchase-base-rate-note">
+              Gold 999: {rupees(pricing.rates.gold)} per 10 grams · Silver 999: {rupees(pricing.rates.silver)} per kilogram.
+              KorViana prices include the listed denomination markup; tax treatment has not been verified.
+            </p>
+          </section>
+        )}
 
         <section className="purchase-panel" aria-labelledby="add-item-heading">
           <div className="purchase-section-heading">
@@ -335,7 +431,7 @@ function PurchasePage() {
             </ul>
           )}
           <form onSubmit={submitRequest}>
-            <button type="submit" className="purchase-primary-button submit-request-button" disabled={items.length === 0}>
+            <button type="submit" className="purchase-primary-button submit-request-button" disabled={items.length === 0 || !allPriced}>
               Submit Purchase Request
             </button>
           </form>

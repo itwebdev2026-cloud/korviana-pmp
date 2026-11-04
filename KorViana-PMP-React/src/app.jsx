@@ -3,13 +3,20 @@ import './App.css';
 import { useEffect, useState } from 'react';
 import { supabase } from './lib/supabaseClient';
 import { payWithRazorpay } from './lib/razorpayCheckout';
+import {
+  calculateKorvianaPrice,
+  DEFAULT_IBJA_RATES,
+  DEFAULT_RATE_MARKUPS,
+  hasAtMostTwoDecimals,
+  RATE_DENOMINATIONS,
+  RATE_UNITS,
+  rateMarkupKey,
+} from './lib/ratePricing';
 
 const svgBase = { fill: "none", stroke: "currentColor", strokeWidth: "1.8", strokeLinecap: "round", strokeLinejoin: "round" };
 const Menu = ({ size = 18, className = "" }) => (<svg width={size} height={size} viewBox="0 0 24 24" {...svgBase} className={className}><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/></svg>);
 const X = ({ size = 18, className = "" }) => (<svg width={size} height={size} viewBox="0 0 24 24" {...svgBase} className={className}><line x1="5" y1="5" x2="19" y2="19"/><line x1="19" y1="5" x2="5" y2="19"/></svg>);
 const ChevronRight = ({ size = 18, className = "" }) => (<svg width={size} height={size} viewBox="0 0 24 24" {...svgBase} className={className}><polyline points="8 4 16 12 8 20"/></svg>);
-const TrendingUp = ({ size = 18, className = "" }) => (<svg width={size} height={size} viewBox="0 0 24 24" {...svgBase} className={className}><polyline points="3 17 9 11 13 15 21 6"/><polyline points="15 6 21 6 21 12"/></svg>);
-const TrendingDown = ({ size = 18, className = "" }) => (<svg width={size} height={size} viewBox="0 0 24 24" {...svgBase} className={className}><polyline points="3 7 9 13 13 9 21 18"/><polyline points="21 11 21 18 15 18"/></svg>);
 const Coins = ({ size = 18, className = "" }) => (<svg width={size} height={size} viewBox="0 0 24 24" {...svgBase} className={className}><circle cx="9" cy="9" r="6"/><path d="M14.5 8a6 6 0 1 1 0 10.5"/></svg>);
 const Award = ({ size = 18, className = "" }) => (<svg width={size} height={size} viewBox="0 0 24 24" {...svgBase} className={className}><circle cx="12" cy="8" r="5"/><polyline points="8.5 12.5 7 21 12 18 17 21 15.5 12.5"/></svg>);
 const Users = ({ size = 18, className = "" }) => (<svg width={size} height={size} viewBox="0 0 24 24" {...svgBase} className={className}><circle cx="9" cy="8" r="3.2"/><path d="M3.5 19c0-3 2.5-5 5.5-5s5.5 2 5.5 5"/><path d="M16 8.2a3 3 0 1 1 0 5.9"/><path d="M15 14.2c2.4.4 4.5 2.1 4.5 4.8"/></svg>);
@@ -292,14 +299,34 @@ const Fonts = () => (
 /* =========================================================================
    MOCK DATA
    ========================================================================= */
-const RATES = { gold: { rate: 7842, change: 0.4 }, silver: { rate: 94.2, change: -0.2 } };
-const GOLD_WEIGHTS = [1, 2, 5, 10, 20, 50, 100];
-const SILVER_WEIGHTS = [50, 100, 200, 500, 1000];
-const RATE_CHART_WEIGHTS = { gold: [1, 2, 5, 10, 50, 100], silver: SILVER_WEIGHTS };
-const formatRatePrice = (rate, weight) => `₹ ${(rate * weight).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const GOLD_WEIGHTS = RATE_DENOMINATIONS.gold.map(({ weightGrams }) => weightGrams);
+const SILVER_WEIGHTS = RATE_DENOMINATIONS.silver.map(({ weightGrams }) => weightGrams);
+const formatRatePrice = (price) => `₹ ${price.toLocaleString("en-IN")}`;
 
-const goldProducts = GOLD_WEIGHTS.map((w) => ({ id: `AU-${w}`, metal: "Gold", purity: "24K · 99.99%", weight: w, price: Math.round(w * RATES.gold.rate) }));
-const silverProducts = SILVER_WEIGHTS.map((w) => ({ id: `AG-${w}`, metal: "Silver", purity: "99.99%", weight: w, price: Math.round((w / 1000) * 1000 * RATES.silver.rate) }));
+const goldProducts = GOLD_WEIGHTS.map((weight) => ({
+  id: `AU-${weight}`,
+  metal: "Gold",
+  purity: "24K · 99.99%",
+  weight,
+  price: calculateKorvianaPrice(
+    "gold",
+    DEFAULT_IBJA_RATES.gold,
+    weight,
+    DEFAULT_RATE_MARKUPS[rateMarkupKey("gold", weight)],
+  ),
+}));
+const silverProducts = SILVER_WEIGHTS.map((weight) => ({
+  id: `AG-${weight}`,
+  metal: "Silver",
+  purity: "99.99%",
+  weight,
+  price: calculateKorvianaPrice(
+    "silver",
+    DEFAULT_IBJA_RATES.silver,
+    weight,
+    DEFAULT_RATE_MARKUPS[rateMarkupKey("silver", weight)],
+  ),
+}));
 const formatWeight = (product) => {
   const weight = Number(product.weight);
   const inKilograms = product.metal.toLowerCase() === "silver" && weight >= 1000;
@@ -415,10 +442,11 @@ const GhostButton = ({ children, onClick, className = "", dark }) => (
 /* =========================================================================
    RATE TICKER
    ========================================================================= */
-const MetalRateTable = ({ metal, rate }) => {
+const MetalRateTable = ({ metal, ibjaRate, markups }) => {
   const isGold = metal === "gold";
   const name = isGold ? "Gold 999 (24 Karat Pure Gold)" : "Silver 999 (Pure Silver)";
-  const weights = RATE_CHART_WEIGHTS[metal];
+  const denominations = RATE_DENOMINATIONS[metal];
+  const rateUnit = RATE_UNITS[metal];
 
   return (
     <section className="surface overflow-hidden" aria-label={`${name} rate table`}>
@@ -433,6 +461,9 @@ const MetalRateTable = ({ metal, rate }) => {
       >
         {name}
       </h3>
+      <div className="px-4 py-3 text-xs text-muted-ink">
+        IBJA base rate: {formatRatePrice(ibjaRate)} / {rateUnit.label}
+      </div>
       <div className="overflow-x-auto">
         <table className="w-full text-xs sm:text-sm">
           <thead>
@@ -442,16 +473,24 @@ const MetalRateTable = ({ metal, rate }) => {
             </tr>
           </thead>
           <tbody>
-            {weights.map((weight) => (
-              <tr key={weight} className="ledger-row">
-                <th scope="row" className="px-4 py-3 text-left font-medium whitespace-nowrap">
-                  {weight === 1000 ? "1 Kilogram" : `${weight} Gram${weight === 1 ? "" : "s"}`}
-                </th>
-                <td className="px-4 py-3 text-right font-semibold whitespace-nowrap">
-                  {formatRatePrice(rate, weight)}
-                </td>
-              </tr>
-            ))}
+            {denominations.map(({ weightGrams }) => {
+              const price = calculateKorvianaPrice(
+                metal,
+                ibjaRate,
+                weightGrams,
+                markups[rateMarkupKey(metal, weightGrams)],
+              );
+              return (
+                <tr key={weightGrams} className="ledger-row">
+                  <th scope="row" className="px-4 py-3 text-left font-medium whitespace-nowrap">
+                    {weightGrams === 1000 ? "1 Kilogram" : `${weightGrams} Gram${weightGrams === 1 ? "" : "s"}`}
+                  </th>
+                  <td className="px-4 py-3 text-right font-semibold whitespace-nowrap">
+                    {price === null ? "—" : formatRatePrice(price)}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -460,7 +499,7 @@ const MetalRateTable = ({ metal, rate }) => {
 };
 
 const SplitVisual = () => {
-  const [rates, setRates] = useState(null);
+  const [pricing, setPricing] = useState(null);
   const [updatedAt, setUpdatedAt] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -473,31 +512,53 @@ const SplitVisual = () => {
     const loadRates = async () => {
       setLoading(true);
       setError("");
-      const { data, error: queryError } = await supabase
-        .from("metal_rates")
-        .select("metal, rate_per_gram, updated_at")
-        .in("metal", ["gold", "silver"])
-        .abortSignal(controller.signal);
+      const [settingsResult, markupsResult] = await Promise.all([
+        supabase
+          .from("metal_rate_settings")
+          .select("metal, ibja_rate, base_unit_grams, updated_at")
+          .abortSignal(controller.signal),
+        supabase
+          .from("metal_rate_markups")
+          .select("metal, weight_grams, markup_percent")
+          .abortSignal(controller.signal),
+      ]);
 
       if (!isCurrent) return;
-      if (queryError) {
+      if (settingsResult.error || markupsResult.error) {
+        const queryError = settingsResult.error || markupsResult.error;
         setError(controller.signal.aborted ? "Rate request timed out. Check your connection and try again." : queryError.message);
         setLoading(false);
         return;
       }
 
-      const nextRates = Object.fromEntries(
-        (data ?? []).map((row) => [row.metal, Number(row.rate_per_gram)]),
+      const settings = Object.fromEntries(
+        (settingsResult.data ?? []).map((row) => [row.metal, {
+          ibjaRate: Number(row.ibja_rate),
+          baseUnitGrams: Number(row.base_unit_grams),
+          updatedAt: row.updated_at,
+        }]),
       );
-      if (!Number.isFinite(nextRates.gold) || !Number.isFinite(nextRates.silver)) {
-        setError("Gold and silver rates are not both available yet.");
+      const nextMarkups = Object.fromEntries(
+        (markupsResult.data ?? []).map((row) => [
+          rateMarkupKey(row.metal, Number(row.weight_grams)),
+          Number(row.markup_percent),
+        ]),
+      );
+      const hasAllDenominations = Object.entries(RATE_DENOMINATIONS).every(([metal, denominations]) =>
+        denominations.every(({ weightGrams }) => Number.isFinite(nextMarkups[rateMarkupKey(metal, weightGrams)])),
+      );
+      if (
+        !Number.isFinite(settings.gold?.ibjaRate)
+        || !Number.isFinite(settings.silver?.ibjaRate)
+        || !hasAllDenominations
+      ) {
+        setError("Published IBJA rates and all denomination markups are not available yet.");
         setLoading(false);
         return;
       }
-      const latestUpdate = (data ?? []).reduce((latest, row) => (
-        !latest || new Date(row.updated_at) > new Date(latest) ? row.updated_at : latest
-      ), null);
-      setRates(nextRates);
+      const latestUpdate = [settings.gold.updatedAt, settings.silver.updatedAt]
+        .reduce((latest, value) => (!latest || new Date(value) > new Date(latest) ? value : latest), null);
+      setPricing({ settings, markups: nextMarkups });
       setUpdatedAt(latestUpdate);
       setLoading(false);
     };
@@ -506,7 +567,7 @@ const SplitVisual = () => {
       if (!isCurrent) return;
       setError(controller.signal.aborted
         ? "Rate request timed out. Check your connection and try again."
-        : loadError instanceof Error ? loadError.message : "Published rates could not be loaded.");
+        : loadError instanceof Error ? loadError.message : "Published pricing could not be loaded.");
       setLoading(false);
     }).finally(() => clearTimeout(timeoutId));
 
@@ -540,12 +601,20 @@ const SplitVisual = () => {
           <button type="button" onClick={() => setRefresh((attempt) => attempt + 1)} className="mt-2 underline focus-ring">Try again</button>
         </div>
       )}
-      {!loading && !error && rates && (
+      {!loading && !error && pricing && (
         <div className="grid md:grid-cols-2 gap-4">
-          <MetalRateTable metal="gold" rate={rates.gold} />
-          <MetalRateTable metal="silver" rate={rates.silver} />
+          <MetalRateTable
+            metal="gold"
+            ibjaRate={pricing.settings.gold.ibjaRate}
+            markups={pricing.markups}
+          />
+          <MetalRateTable
+            metal="silver"
+            ibjaRate={pricing.settings.silver.ibjaRate}
+            markups={pricing.markups}
+          />
           <div className="md:col-span-2 border border-hair rounded-lg px-3 py-3 text-center text-[10px] text-muted-ink">
-            Prices are calculated from the latest published rate per gram.
+            No tax has been added; tax treatment has not been verified.
           </div>
         </div>
       )}
@@ -553,24 +622,48 @@ const SplitVisual = () => {
   );
 };
 
-const RateTickerLight = () => (
-  <div className="surface">
-    {[["Gold", "24K · 99.99%", RATES.gold], ["Silver", "99.99%", RATES.silver]].map(([name, purity, r]) => (
-      <div key={name} className="flex items-center justify-between px-4 py-3 ledger-row">
-        <div>
-          <div className="font-display">{name}</div>
-          <div className="text-xs text-muted-ink">{purity}</div>
-        </div>
-        <div className="text-right">
-          <div className="font-display grad-gold-text">₹{r.rate.toLocaleString("en-IN")}/g</div>
-          <div className={`text-xs flex items-center justify-end gap-1 ${r.change >= 0 ? "text-forest" : "text-rust"}`}>
-            {r.change >= 0 ? <TrendingUp size={11} /> : <TrendingDown size={11} />}{Math.abs(r.change)}%
+const RateTickerLight = () => {
+  const [rates, setRates] = useState(null);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let isCurrent = true;
+    supabase.from("metal_rate_settings").select("metal, ibja_rate").then(({ data, error: queryError }) => {
+      if (!isCurrent) return;
+      if (queryError) {
+        setError(queryError.message);
+        return;
+      }
+      const nextRates = Object.fromEntries((data ?? []).map((row) => [row.metal, Number(row.ibja_rate)]));
+      if (!Number.isFinite(nextRates.gold) || !Number.isFinite(nextRates.silver)) {
+        setError("Both IBJA rates are not available.");
+        return;
+      }
+      setRates(nextRates);
+    }).catch((loadError) => {
+      if (isCurrent) setError(loadError instanceof Error ? loadError.message : "IBJA rates could not be loaded.");
+    });
+    return () => { isCurrent = false; };
+  }, []);
+
+  return (
+    <div className="surface">
+      {error && <div role="alert" className="px-4 py-3 text-xs text-rust">IBJA rates could not be loaded: {error}</div>}
+      {!error && !rates && <div role="status" className="px-4 py-3 text-xs text-muted-ink">Loading IBJA rates...</div>}
+      {rates && ["gold", "silver"].map((metal) => (
+        <div key={metal} className="flex items-center justify-between px-4 py-3 ledger-row">
+          <div>
+            <div className="font-display">{metal === "gold" ? "Gold 999" : "Silver 999"}</div>
+            <div className="text-xs text-muted-ink">IBJA · per {RATE_UNITS[metal].label}</div>
+          </div>
+          <div className="font-display grad-gold-text">
+            {formatRatePrice(rates[metal])}
           </div>
         </div>
-      </div>
-    ))}
-  </div>
-);
+      ))}
+    </div>
+  );
+};
 
 /* =========================================================================
    LANDING PAGE
@@ -1486,26 +1579,130 @@ function AgentPortal({ onExit }) {
    ========================================================================= */
 function AdminPortal({ onExit }) {
   const [active, setActive] = useState("overview");
-  const [rates, setRates] = useState(RATES);
+  const [ibjaRates, setIbjaRates] = useState({ gold: "", silver: "" });
+  const [markups, setMarkups] = useState(DEFAULT_RATE_MARKUPS);
+  const [pricingLoading, setPricingLoading] = useState(true);
+  const [pricingLoadError, setPricingLoadError] = useState("");
+  const [pricingError, setPricingError] = useState("");
+  const [historyError, setHistoryError] = useState("");
+  const [pricingSaving, setPricingSaving] = useState(false);
+  const [pricingUpdatedAt, setPricingUpdatedAt] = useState(null);
+  const [pricingHistory, setPricingHistory] = useState([]);
+  const [pricingRefresh, setPricingRefresh] = useState(0);
   const [rateMessage, setRateMessage] = useState("");
 
   useEffect(() => {
     let isCurrent = true;
-    supabase.from("metal_rates").select("metal, rate_per_gram").then(({ data }) => {
-      if (!isCurrent || !data?.length) return;
-      setRates((r) => data.reduce((next, row) => (
-        next[row.metal] ? { ...next, [row.metal]: { ...next[row.metal], rate: Number(row.rate_per_gram) } } : next
-      ), r));
+    const loadPricing = async () => {
+      setPricingLoading(true);
+      setPricingLoadError("");
+      const [settingsResult, markupsResult, historyResult] = await Promise.all([
+        supabase.from("metal_rate_settings").select("metal, ibja_rate, updated_at"),
+        supabase.from("metal_rate_markups").select("metal, weight_grams, markup_percent"),
+        supabase
+          .from("metal_pricing_history")
+          .select("id, metal, weight_grams, ibja_rate, base_unit_grams, markup_percent, raw_rate, final_rate, recorded_at")
+          .order("recorded_at", { ascending: false })
+          .limit(33),
+      ]);
+
+      if (!isCurrent) return;
+      if (settingsResult.error || markupsResult.error) {
+        setPricingLoadError((settingsResult.error || markupsResult.error).message);
+        setPricingLoading(false);
+        return;
+      }
+
+      const settings = Object.fromEntries(
+        (settingsResult.data ?? []).map((row) => [row.metal, row]),
+      );
+      const loadedMarkups = Object.fromEntries(
+        (markupsResult.data ?? []).map((row) => [
+          rateMarkupKey(row.metal, Number(row.weight_grams)),
+          String(row.markup_percent),
+        ]),
+      );
+      const hasAllDenominations = Object.entries(RATE_DENOMINATIONS).every(([metal, denominations]) =>
+        denominations.every(({ weightGrams }) => Number.isFinite(Number(loadedMarkups[rateMarkupKey(metal, weightGrams)]))),
+      );
+      if (!settings.gold || !settings.silver || !hasAllDenominations) {
+        setPricingLoadError("IBJA rates or denomination markups are incomplete. Apply the rate-pricing database migration.");
+        setPricingLoading(false);
+        return;
+      }
+
+      setIbjaRates({
+        gold: String(settings.gold.ibja_rate),
+        silver: String(settings.silver.ibja_rate),
+      });
+      setMarkups(loadedMarkups);
+      setPricingUpdatedAt([settings.gold.updated_at, settings.silver.updated_at]
+        .reduce((latest, value) => (!latest || new Date(value) > new Date(latest) ? value : latest), null));
+      setHistoryError(historyResult.error?.message ?? "");
+      setPricingHistory(historyResult.error ? [] : historyResult.data ?? []);
+      setPricingLoading(false);
+    };
+
+    loadPricing().catch((loadError) => {
+      if (!isCurrent) return;
+      setPricingLoadError(loadError instanceof Error ? loadError.message : "Pricing could not be loaded.");
+      setPricingLoading(false);
     });
     return () => { isCurrent = false; };
-  }, []);
+  }, [pricingRefresh]);
 
-  const publishRate = async (key) => {
-    const { error } = await supabase.from("metal_rates").upsert(
-      { metal: key, rate_per_gram: rates[key].rate, updated_at: new Date().toISOString() },
-      { onConflict: "metal" },
+  const savePricing = async () => {
+    setPricingError("");
+    setRateMessage("");
+    const goldRate = Number(ibjaRates.gold);
+    const silverRate = Number(ibjaRates.silver);
+    const markupRows = Object.entries(RATE_DENOMINATIONS).flatMap(([metal, denominations]) =>
+      denominations.map(({ weightGrams }) => ({
+        metal,
+        weight_grams: weightGrams,
+        markup_percent: Number(markups[rateMarkupKey(metal, weightGrams)]),
+      })),
     );
-    setRateMessage(error ? `Could not publish ${key} rate: ${error.message}` : `${key === "gold" ? "Gold" : "Silver"} rate published.`);
+
+    if (
+      !Number.isFinite(goldRate)
+      || goldRate <= 0
+      || !Number.isFinite(silverRate)
+      || silverRate <= 0
+      || !hasAtMostTwoDecimals(goldRate)
+      || !hasAtMostTwoDecimals(silverRate)
+    ) {
+      setPricingError("Enter positive IBJA Gold and Silver rates with at most two decimal places.");
+      return;
+    }
+    if (
+      Object.values(markups).some((value) => String(value).trim() === "")
+      || markupRows.some(({ markup_percent }) =>
+        !Number.isFinite(markup_percent)
+        || markup_percent < 0
+        || markup_percent > 100
+        || !hasAtMostTwoDecimals(markup_percent),
+      )
+    ) {
+      setPricingError("Markup percentages must be between 0 and 100 with at most two decimal places.");
+      return;
+    }
+
+    setPricingSaving(true);
+    try {
+      const { error } = await supabase.rpc("save_metal_pricing", {
+        p_gold_ibja_rate: goldRate,
+        p_silver_ibja_rate: silverRate,
+        p_markups: markupRows,
+      });
+      if (error) throw new Error(error.message);
+      setRateMessage("Rates saved. The customer chart and product prices are updated.");
+      setPricingRefresh((refreshCount) => refreshCount + 1);
+    } catch (saveError) {
+      setPricingError(saveError instanceof Error ? saveError.message : "Pricing could not be saved.");
+    } finally {
+      setPricingSaving(false);
+    }
   };
   const tabs = [
     ["overview", "Overview", LayoutGrid], ["orders", "Orders", ListChecks],
@@ -1573,21 +1770,151 @@ function AdminPortal({ onExit }) {
       )}
 
       {active === "pricing" && (
-        <div className="max-w-md flex flex-col gap-4">
-          {[["gold", "Gold", "24K · 99.99%"], ["silver", "Silver", "99.99%"]].map(([key, name, purity]) => (
-            <div key={key} className="surface p-5">
-              <div className="mb-3"><div className="font-display">{name}</div><div className="text-xs text-muted-ink">{purity} · per gram</div></div>
-              <div className="flex items-center gap-3">
-                <span className="text-muted-ink">₹</span>
-                <input type="number" value={rates[key].rate}
-                  onChange={(e) => setRates((r) => ({ ...r, [key]: { ...r[key], rate: Number(e.target.value) } }))}
-                  className="border border-hair rounded-xl px-3 py-2 text-sm w-32 focus-ring" />
-                <GhostButton onClick={() => publishRate(key)} className="ml-auto">Publish rate</GhostButton>
-              </div>
+        <div className="flex flex-col gap-5">
+          {pricingLoading && <div role="status" className="surface p-5 text-sm text-muted-ink">Loading IBJA rates and markup settings...</div>}
+          {pricingLoadError && (
+            <div role="alert" className="surface p-5 text-sm text-rust">
+              <p>Pricing settings could not be loaded: {pricingLoadError}</p>
+              <button type="button" onClick={() => setPricingRefresh((refreshCount) => refreshCount + 1)} className="mt-3 underline focus-ring">Try again</button>
             </div>
-          ))}
-          {rateMessage && <p role="status" className="text-sm">{rateMessage}</p>}
-          <p className="text-xs text-muted-ink">Publishing updates the purchase page, catalogue and any orders configured to use daily-rate pricing.</p>
+          )}
+          {!pricingLoading && !pricingLoadError && (
+            <>
+              <div className="grid md:grid-cols-2 gap-4">
+                {["gold", "silver"].map((metal) => (
+                  <section key={metal} className="surface p-5">
+                    <h3 className="font-display mb-1">{metal === "gold" ? "IBJA Gold 999" : "IBJA Silver 999"}</h3>
+                    <label className="block text-xs text-muted-ink mb-2" htmlFor={`${metal}-ibja-rate`}>
+                      Base rate per {RATE_UNITS[metal].label}
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <span className="text-muted-ink">₹</span>
+                      <input
+                        id={`${metal}-ibja-rate`}
+                        type="number"
+                        min="0.01"
+                        step="0.01"
+                        inputMode="decimal"
+                        value={ibjaRates[metal]}
+                        onChange={(event) => setIbjaRates((current) => ({ ...current, [metal]: event.target.value }))}
+                        className="border border-hair rounded-xl px-3 py-2 text-sm w-full focus-ring"
+                      />
+                    </div>
+                  </section>
+                ))}
+              </div>
+
+              <div className="grid xl:grid-cols-2 gap-4">
+                {Object.entries(RATE_DENOMINATIONS).map(([metal, denominations]) => (
+                  <section key={metal} className="surface overflow-x-auto">
+                    <h3 className="font-display px-4 py-3 border-b border-hair">
+                      {metal === "gold" ? "Gold 999 markups and prices" : "Silver 999 markups and prices"}
+                    </h3>
+                    <table className="w-full text-xs sm:text-sm">
+                      <thead>
+                        <tr className="bg-bone-2 text-muted-ink">
+                          <th scope="col" className="px-3 py-3 text-left">Denomination</th>
+                          <th scope="col" className="px-3 py-3 text-right">Markup</th>
+                          <th scope="col" className="px-3 py-3 text-right">KorViana rate</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {denominations.map(({ weightGrams }) => {
+                          const markupId = rateMarkupKey(metal, weightGrams);
+                          const markupValue = markups[markupId];
+                          const price = String(ibjaRates[metal]).trim() === "" || String(markupValue ?? "").trim() === ""
+                            ? null
+                            : calculateKorvianaPrice(metal, Number(ibjaRates[metal]), weightGrams, Number(markupValue));
+                          return (
+                            <tr key={weightGrams} className="ledger-row">
+                              <th scope="row" className="px-3 py-3 text-left font-medium whitespace-nowrap">
+                                {weightGrams === 1000 ? "1 Kilogram" : `${weightGrams} Gram${weightGrams === 1 ? "" : "s"}`}
+                              </th>
+                              <td className="px-3 py-3 text-right">
+                                <input
+                                  type="number"
+                                  min="0"
+                                  max="100"
+                                  step="0.01"
+                                  inputMode="decimal"
+                                  aria-label={`${metal} ${weightGrams} gram markup percentage`}
+                                  value={markups[markupId] ?? ""}
+                                  onChange={(event) => setMarkups((current) => ({ ...current, [markupId]: event.target.value }))}
+                                  className="border border-hair rounded-lg px-2 py-1 text-right w-20 focus-ring"
+                                />
+                                <span className="ml-1">%</span>
+                              </td>
+                              <td className="px-3 py-3 text-right font-semibold whitespace-nowrap">
+                                {price === null ? "—" : money(price)}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </section>
+                ))}
+              </div>
+
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <PrimaryButton onClick={savePricing} disabled={pricingSaving}>
+                  {pricingSaving ? "Saving..." : "Save and publish all rates"}
+                </PrimaryButton>
+                {pricingUpdatedAt && (
+                  <p className="text-xs text-muted-ink">
+                    Last updated: {new Date(pricingUpdatedAt).toLocaleString("en-IN")}
+                  </p>
+                )}
+              </div>
+              {pricingError && <p role="alert" className="text-sm text-rust">{pricingError}</p>}
+              {rateMessage && <p role="status" className="text-sm text-forest">{rateMessage}</p>}
+              <p className="text-xs text-muted-ink">
+                Prices use the IBJA base rate and the denomination markup, rounded to the nearest rupee. No tax is added until its treatment is verified.
+              </p>
+
+              <section className="surface overflow-x-auto">
+                <h3 className="font-display px-4 py-3 border-b border-hair">Rate calculation history</h3>
+                {historyError && <p role="alert" className="px-4 py-3 text-xs text-rust">Rate history could not be loaded: {historyError}</p>}
+                {!historyError && pricingHistory.length === 0 && (
+                  <p className="px-4 py-3 text-sm text-muted-ink">No rate calculations have been recorded yet.</p>
+                )}
+                {!historyError && pricingHistory.length > 0 && (
+                  <table className="w-full text-xs sm:text-sm">
+                    <thead>
+                      <tr className="bg-bone-2 text-muted-ink">
+                        <th scope="col" className="px-3 py-3 text-left">Updated</th>
+                        <th scope="col" className="px-3 py-3 text-left">Metal</th>
+                        <th scope="col" className="px-3 py-3 text-left">Denomination</th>
+                        <th scope="col" className="px-3 py-3 text-right">IBJA base</th>
+                        <th scope="col" className="px-3 py-3 text-right">Markup</th>
+                        <th scope="col" className="px-3 py-3 text-right">Raw</th>
+                        <th scope="col" className="px-3 py-3 text-right">Final</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pricingHistory.map((entry) => (
+                        <tr key={entry.id} className="ledger-row">
+                          <td className="px-3 py-3 whitespace-nowrap">{new Date(entry.recorded_at).toLocaleString("en-IN")}</td>
+                          <td className="px-3 py-3 capitalize">{entry.metal}</td>
+                          <td className="px-3 py-3 whitespace-nowrap">
+                            {entry.weight_grams === 1000 ? "1 Kilogram" : `${entry.weight_grams} Gram${entry.weight_grams === 1 ? "" : "s"}`}
+                          </td>
+                          <td className="px-3 py-3 text-right whitespace-nowrap">
+                            {money(Number(entry.ibja_rate))} / {entry.base_unit_grams === 1000 ? "kg" : "10 g"}
+                          </td>
+                          <td className="px-3 py-3 text-right">{Number(entry.markup_percent).toFixed(2)}%</td>
+                          <td className="px-3 py-3 text-right whitespace-nowrap">
+                            ₹{Number(entry.raw_rate).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 6 })}
+                          </td>
+                          <td className="px-3 py-3 text-right font-semibold whitespace-nowrap">{money(Number(entry.final_rate))}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </section>
+            </>
+          )}
         </div>
       )}
 

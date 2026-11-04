@@ -4,7 +4,7 @@ The checkout uses a Supabase Edge Function to create Razorpay orders, verify che
 
 ## Setup
 
-1. Apply `supabase/schema.sql` in the Supabase SQL Editor if this is a new project. Apply `supabase/migrations/20261029_multi_item_cart.sql` to an existing project to enable multi-item orders. If your local and remote migration histories are already in sync, you can instead run:
+1. Apply `supabase/schema.sql` in the Supabase SQL Editor if this is a new project, then apply all files in `supabase/migrations` in timestamp order. Existing projects must apply all pending migrations, including `20261104_ibja_rate_pricing.sql`, which adds IBJA base rates, editable denomination markups, calculated product prices, and rate history. If your local and remote migration histories are already in sync, you can instead run:
 
    ```powershell
    supabase link --project-ref <your-project-ref>

@@ -187,6 +187,18 @@
   margin-bottom: 22px;
 }
 
+.purchase-pricing-updated {
+  color: var(--purchase-muted);
+  font-size: 11px;
+  text-align: right;
+}
+
+.purchase-base-rate-note {
+  margin: 0;
+  color: var(--purchase-muted);
+  font-size: 14px;
+}
+
 .purchase-section-heading h2,
 .summary-title h2 {
   font-size: 25px;
