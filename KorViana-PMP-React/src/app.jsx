@@ -467,7 +467,7 @@ const MetalRateTable = ({ metal, ibjaRate, markups }) => {
         {name}
       </h3>
       <div className="px-4 py-3 text-xs text-muted-ink">
-        IBJA base rate: {formatRatePrice(ibjaRate)} / {rateUnit.label}
+        Base rate: {formatRatePrice(ibjaRate)} / {rateUnit.label}
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-xs sm:text-sm">
@@ -572,12 +572,12 @@ const RateTickerLight = () => {
 
   return (
     <div className="surface">
-      {error && <div role="alert" className="px-4 py-3 text-xs text-rust">IBJA rates could not be loaded: {error}</div>}
+      {error && <div role="alert" className="px-4 py-3 text-xs text-rust">Base rates could not be loaded: {error}</div>}
       {pricing && ["gold", "silver"].map((metal) => (
         <div key={metal} className="flex items-center justify-between px-4 py-3 ledger-row">
           <div>
             <div className="font-display">{metal === "gold" ? "Gold 999" : "Silver 999"}</div>
-            <div className="text-xs text-muted-ink">IBJA · per {RATE_UNITS[metal].label}</div>
+            <div className="text-xs text-muted-ink">Base rate · per {RATE_UNITS[metal].label}</div>
           </div>
           <div className="font-display grad-gold-text">
             {formatRatePrice(pricing.rates[metal])}
@@ -1573,7 +1573,7 @@ function AdminPortal({ onExit }) {
       || !hasAtMostTwoDecimals(goldRate)
       || !hasAtMostTwoDecimals(silverRate)
     ) {
-      setPricingError("Enter positive IBJA Gold and Silver rates with at most two decimal places.");
+      setPricingError("Enter positive Gold and Silver base rates with at most two decimal places.");
       return;
     }
     if (
@@ -1683,7 +1683,7 @@ function AdminPortal({ onExit }) {
               <div className="grid md:grid-cols-2 gap-4">
                 {["gold", "silver"].map((metal) => (
                   <section key={metal} className="surface p-5">
-                    <h3 className="font-display mb-1">{metal === "gold" ? "IBJA Gold 999" : "IBJA Silver 999"}</h3>
+                    <h3 className="font-display mb-1">{metal === "gold" ? "Gold 999" : "Silver 999"}</h3>
                     <label className="block text-xs text-muted-ink mb-2" htmlFor={`${metal}-ibja-rate`}>
                       Base rate per {RATE_UNITS[metal].label}
                     </label>
@@ -1763,13 +1763,13 @@ function AdminPortal({ onExit }) {
                 <p className="text-xs text-muted-ink">
                   {pricingUpdatedAt
                     ? `Last updated: ${new Date(pricingUpdatedAt).toLocaleString("en-IN")}`
-                    : "Starter rates · verify current IBJA rates before use"}
+                    : "Starter rates · verify current rates before use"}
                 </p>
               </div>
               {pricingError && <p role="alert" className="text-sm text-rust">{pricingError}</p>}
               {rateMessage && <p role="status" className="text-sm text-forest">{rateMessage}</p>}
               <p className="text-xs text-muted-ink">
-                Prices use the IBJA base rate and the denomination markup, rounded to the nearest rupee. No tax is added until its treatment is verified.
+                Prices use the base rate and the denomination markup, rounded to the nearest rupee. No tax is added until its treatment is verified.
               </p>
               <p className="text-xs text-muted-ink">
                 These settings are saved only in this browser and are not shared with visitors or other devices.
@@ -1787,7 +1787,7 @@ function AdminPortal({ onExit }) {
                         <th scope="col" className="px-3 py-3 text-left">Updated</th>
                         <th scope="col" className="px-3 py-3 text-left">Metal</th>
                         <th scope="col" className="px-3 py-3 text-left">Denomination</th>
-                        <th scope="col" className="px-3 py-3 text-right">IBJA base</th>
+                        <th scope="col" className="px-3 py-3 text-right">Base rate</th>
                         <th scope="col" className="px-3 py-3 text-right">Markup</th>
                         <th scope="col" className="px-3 py-3 text-right">Raw</th>
                         <th scope="col" className="px-3 py-3 text-right">Final</th>

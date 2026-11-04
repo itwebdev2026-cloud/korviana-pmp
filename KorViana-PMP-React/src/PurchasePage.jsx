@@ -191,7 +191,7 @@ function PurchasePage() {
         <section className="purchase-intro">
           <p className="purchase-eyebrow">PURCHASE</p>
           <h1>PURCHASE</h1>
-          <p>Build a request using the latest IBJA base rates and KorViana denomination markups.</p>
+          <p>Build a request using the current gold and silver base rates and KorViana denomination markups.</p>
         </section>
 
         {pricingError && (
@@ -204,7 +204,7 @@ function PurchasePage() {
           <section className="purchase-panel" aria-label="Published base rates">
             <div className="purchase-section-heading">
               <div>
-                <p className="purchase-eyebrow">IBJA BASE RATES</p>
+                <p className="purchase-eyebrow">BASE RATES</p>
                 <h2>Current reference rates</h2>
               </div>
               <span className="purchase-pricing-updated">
