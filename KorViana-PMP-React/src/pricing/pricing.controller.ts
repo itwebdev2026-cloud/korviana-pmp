@@ -22,6 +22,6 @@ export class PricingController {
     @Res() response: Response,
   ): Promise<void> {
     await this.pricing.update(input, request.user);
-    response.redirect('/dashboard?section=pricing&saved=1');
+    response.redirect(303, '/dashboard?section=pricing&saved=1');
   }
 }

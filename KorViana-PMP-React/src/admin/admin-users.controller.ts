@@ -33,7 +33,7 @@ export class AdminUsersController {
       throw new BadRequestException('Password must be no more than 72 bytes.');
     }
     if (await this.profiles.existsBy({ email })) {
-      response.redirect(`/dashboard?section=associates&error=${encodeURIComponent('An account with this email already exists.')}`);
+      response.redirect(303, `/dashboard?section=associates&error=${encodeURIComponent('An account with this email already exists.')}`);
       return;
     }
 
@@ -51,12 +51,12 @@ export class AdminUsersController {
       if (error instanceof Error && 'driverError' in error
         && typeof error.driverError === 'object' && error.driverError !== null
         && 'code' in error.driverError && error.driverError.code === '23505') {
-        response.redirect(`/dashboard?section=associates&error=${encodeURIComponent('An account with this email already exists.')}`);
+        response.redirect(303, `/dashboard?section=associates&error=${encodeURIComponent('An account with this email already exists.')}`);
         return;
       }
       throw error;
     }
-    response.redirect('/dashboard?section=associates&created=1');
+    response.redirect(303, '/dashboard?section=associates&created=1');
   }
 
   @Post('customers/assign')
@@ -73,11 +73,11 @@ export class AdminUsersController {
       role: 'associate',
     });
     if (!customer || !associate) {
-      response.redirect(`/dashboard?section=associates&error=${encodeURIComponent('Choose an existing customer and associate.')}`);
+      response.redirect(303, `/dashboard?section=associates&error=${encodeURIComponent('Choose an existing customer and associate.')}`);
       return;
     }
     customer.associateId = associate.id;
     await this.profiles.save(customer);
-    response.redirect('/dashboard?section=associates&assigned=1');
+    response.redirect(303, '/dashboard?section=associates&assigned=1');
   }
 }

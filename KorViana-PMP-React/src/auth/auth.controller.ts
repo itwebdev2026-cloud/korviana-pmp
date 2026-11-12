@@ -31,10 +31,10 @@ export class AuthController {
     try {
       const { token } = await this.auth.login(input, role);
       this.setSessionCookie(response, token);
-      response.redirect('/dashboard');
+      response.redirect(303, '/dashboard');
     } catch (error) {
       if (error instanceof UnauthorizedException) {
-        response.redirect(`/login?role=${encodeURIComponent(role ?? 'customer')}&error=${encodeURIComponent(error.message)}`);
+        response.redirect(303, `/login?role=${encodeURIComponent(role ?? 'customer')}&error=${encodeURIComponent(error.message)}`);
         return;
       }
       throw error;
@@ -46,10 +46,10 @@ export class AuthController {
     try {
       const { token } = await this.auth.registerCustomer(input);
       this.setSessionCookie(response, token);
-      response.redirect('/dashboard');
+      response.redirect(303, '/dashboard');
     } catch (error) {
       if (error instanceof ConflictException) {
-        response.redirect(`/login?mode=register&error=${encodeURIComponent(error.message)}`);
+        response.redirect(303, `/login?mode=register&error=${encodeURIComponent(error.message)}`);
         return;
       }
       throw error;
@@ -59,7 +59,7 @@ export class AuthController {
   @Post('logout')
   logout(@Res() response: Response): void {
     response.clearCookie('korviana_token', { path: '/' });
-    response.redirect('/');
+    response.redirect(303, '/');
   }
 
   private setSessionCookie(response: Response, token: string): void {

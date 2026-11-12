@@ -7,7 +7,7 @@
     "build": "npm run css:build && npm run dashboard:build && nest build",
     "css:build": "tailwindcss -i ./src/styles.css -o ./public/css/tailwind.css --minify",
     "dashboard:build": "esbuild src/admin-dashboard/main.tsx --bundle --minify --format=iife --target=es2020 --outfile=public/js/admin-dashboard.js",
-    "test": "npm run build && node --test test/pricing.test.cjs",
+    "test": "npm run build && node --test test/pricing.test.cjs test/auth-redirects.test.cjs",
     "start": "node dist/main.js",
     "start:dev": "npm run css:build && npm run dashboard:build && nest start --watch",
     "start:prod": "node dist/main.js"
