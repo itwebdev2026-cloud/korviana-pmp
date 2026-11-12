@@ -2,7 +2,7 @@
   "buildCommand": "npm run build",
   "functions": {
     "api/index.ts": {
-      "includeFiles": ["dist/views/**", "public/**"]
+      "includeFiles": "{dist/views/**,public/**}"
     }
   },
   "rewrites": [
