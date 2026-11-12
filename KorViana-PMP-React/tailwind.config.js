@@ -3,6 +3,7 @@ module.exports = {
   content: [
     './src/views/**/*.ejs',
     './src/**/*.ts',
+    './src/admin-dashboard/**/*.{ts,tsx}',
     './public/js/**/*.js',
   ],
   theme: {

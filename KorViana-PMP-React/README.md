@@ -1,8 +1,8 @@
 # KorViana PMP
 
-The application is served by NestJS with server-rendered EJS pages, a PostgreSQL database managed by TypeORM migrations, and a mobile-first Tailwind CSS build.
+The application is served by NestJS with server-rendered EJS pages, a React and Zustand store-manager dashboard, a PostgreSQL database managed by TypeORM migrations, and a mobile-first Tailwind CSS build.
 
-The obsolete React/Vite frontend and hosted-backend integrations have been removed. Original CSV exports are retained under `data/legacy-export/`; they are not read by the application or imported automatically.
+The former React/Vite frontend and hosted-backend integrations have been removed. React is bundled only for the store-manager dashboard; customer and associate pages remain server-rendered. Original CSV exports are retained under `data/legacy-export/`; they are not read by the application or imported automatically.
 
 ## Requirements
 
@@ -43,9 +43,9 @@ Open `http://localhost:3000`. On the first successful database connection, TypeO
 - `/purchase.html` — email-only purchase request builder (not an order or payment)
 - `/associates.html` — portal entry points
 - `/login` — customer, associate, and admin sign-in
-- `/dashboard` — role-specific server-rendered portal
+- `/dashboard` — React/Zustand store manager for admins; server-rendered portals for customers and associates
 
-Tailwind is built as part of `npm run build`; responsive classes use mobile-first defaults with `sm`, `md`, and `lg` breakpoints.
+`npm run build` builds Tailwind CSS, bundles the React/Zustand admin dashboard, and compiles NestJS. The dashboard bundle is generated at `public/js/admin-dashboard.js`. Responsive classes use mobile-first defaults with `sm`, `md`, and `lg` breakpoints.
 
 ## Accounts and data
 

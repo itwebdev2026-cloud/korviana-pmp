@@ -158,7 +158,7 @@ export class PagesController {
       ? sectionQuery ?? 'overview'
       : 'overview';
 
-    response.render('dashboard', {
+    const dashboardData = {
       csrfToken: request.cookies?.korviana_csrf ?? '',
       profile: this.auth.publicProfile(profile),
       section,
@@ -177,6 +177,26 @@ export class PagesController {
       associates,
       profileCount,
       orderCount,
+    };
+    const adminDashboardData = {
+      csrfToken: dashboardData.csrfToken,
+      profile: dashboardData.profile,
+      section: dashboardData.section,
+      saved: dashboardData.saved,
+      created: dashboardData.created,
+      assigned: dashboardData.assigned,
+      adminError: dashboardData.adminError,
+      pricing,
+      products,
+      orders: orderRows,
+      customerProfiles,
+      associates,
+      profileCount,
+      orderCount,
+    };
+    response.render(profile.role === 'admin' ? 'admin-dashboard' : 'dashboard', {
+      ...dashboardData,
+      adminDashboardData,
     });
   }
 

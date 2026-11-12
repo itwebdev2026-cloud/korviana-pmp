@@ -13,6 +13,7 @@ dist-ssr
 *.local
 *.tsbuildinfo
 public/css/
+public/js/admin-dashboard.js
 .env
 .env.*
 !.env.example
