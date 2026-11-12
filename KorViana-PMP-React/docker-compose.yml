@@ -1,0 +1,19 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: korviana
+      POSTGRES_USER: korviana
+      POSTGRES_PASSWORD: korviana
+    ports:
+      - "5432:5432"
+    volumes:
+      - korviana-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U korviana -d korviana"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  korviana-postgres:

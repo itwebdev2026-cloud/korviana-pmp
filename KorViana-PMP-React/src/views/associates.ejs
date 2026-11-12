@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>KorViana Associates</title>
+  <link rel="stylesheet" href="/css/tailwind.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+<body class="bg-bone font-sans text-ink">
+  <%- include('partials/header') %>
+  <main class="page-width py-10 sm:py-16">
+    <section class="max-w-2xl">
+      <p class="text-xs font-bold tracking-[.2em] text-gold-deep">ASSOCIATES</p>
+      <h1 class="mt-3 font-display text-4xl sm:text-5xl">One program, built on clear relationships.</h1>
+      <p class="mt-5 text-base leading-7 text-muted">Associates help customers access the precious metal program and support them through their purchase journey.</p>
+    </section>
+    <section class="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3" aria-label="Program portals">
+      <% [
+        ['Customer', 'Order metal, pay instalments, and track receipts.', '/login?role=customer'],
+        ['Associate', 'Support customers and review your program activity.', '/login?role=associate'],
+        ['Admin', 'Manage metal rates, products, orders, and access.', '/login?role=admin'],
+      ].forEach(([title, description, href]) => { %>
+        <article class="surface flex flex-col p-5 sm:p-6">
+          <h2 class="font-display text-2xl"><%= title %></h2>
+          <p class="mt-3 flex-1 text-sm leading-6 text-muted"><%= description %></p>
+          <a class="mt-5 inline-flex min-h-11 items-center font-semibold text-gold-deep hover:underline" href="<%= href %>">Sign in as <%= title.toLowerCase() %> <span class="ml-2" aria-hidden="true">→</span></a>
+        </article>
+      <% }); %>
+    </section>
+  </main>
+  <%- include('partials/footer') %>
+</body>
+</html>

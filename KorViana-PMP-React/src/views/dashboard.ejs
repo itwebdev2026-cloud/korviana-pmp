@@ -1,0 +1,285 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title><%= profile.role === 'admin' ? 'Admin' : profile.role === 'associate' ? 'Associate' : 'Customer' %> portal · KorViana</title>
+  <link rel="stylesheet" href="/css/tailwind.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+<body class="min-h-screen bg-bone font-sans text-ink">
+  <%- include('partials/header') %>
+  <main class="page-width py-7 sm:py-10">
+    <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+      <div>
+        <p class="text-xs font-bold uppercase tracking-[.18em] text-gold-deep"><%= profile.role %> portal</p>
+        <h1 class="mt-2 font-display text-3xl sm:text-4xl">Welcome, <%= profile.fullName %></h1>
+      </div>
+      <form action="/auth/logout" method="post">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <button class="btn-secondary w-full sm:w-auto" type="submit">Sign out</button>
+      </form>
+    </div>
+
+    <% if (saved) { %>
+      <p class="mt-5 rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-900" role="status">Pricing and catalogue prices were updated.</p>
+    <% } %>
+
+    <nav class="mt-6 flex gap-2 overflow-x-auto border-b border-hair pb-3" aria-label="Portal sections">
+      <% const links = profile.role === 'customer'
+        ? [['overview', 'Overview'], ['purchase', 'Purchase'], ['orders', 'My orders'], ['payments', 'Payments'], ['profile', 'Profile']]
+        : profile.role === 'associate'
+          ? [['overview', 'Overview'], ['customers', 'My customers'], ['network', 'Network'], ['commission', 'Commission'], ['leaderboard', 'Leaderboard'], ['rewards', 'Rewards']]
+          : [['overview', 'Overview'], ['pricing', 'Pricing'], ['orders', 'Orders'], ['products', 'Products'], ['associates', 'Associates']]; %>
+      <% links.forEach(([key, label]) => { %>
+        <a class="shrink-0 rounded-full px-4 py-2 text-sm font-semibold <%= section === key ? 'bg-ink text-white' : 'bg-white text-muted hover:text-ink' %>" href="/dashboard?section=<%= key %>"><%= label %></a>
+      <% }); %>
+    </nav>
+
+    <% if (profile.role === 'customer' && section === 'overview') { %>
+      <section class="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <article class="surface p-5"><p class="text-sm text-muted">Active orders</p><p class="mt-2 font-display text-3xl"><%= orders.filter((order) => ['active', 'confirmed', 'pending'].includes(order.status)).length %></p></article>
+        <article class="surface p-5"><p class="text-sm text-muted">Outstanding instalments</p><p class="mt-2 font-display text-2xl">₹<%= installments.filter((item) => item.status !== 'paid').reduce((total, item) => total + Number(item.amount) - Number(item.paidAmount), 0).toLocaleString('en-IN') %></p></article>
+        <article class="surface p-5"><p class="text-sm text-muted">Payments recorded</p><p class="mt-2 font-display text-3xl"><%= payments.filter((payment) => payment.status === 'successful').length %></p></article>
+      </section>
+      <section class="surface mt-5 p-5 sm:p-7">
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div><p class="text-xs font-bold tracking-[.16em] text-gold-deep">YOUR PROGRAM</p><h2 class="mt-2 font-display text-2xl">Start with the catalogue</h2></div>
+          <a class="btn-primary" href="/dashboard?section=purchase">Browse products</a>
+        </div>
+        <p class="mt-3 text-sm leading-6 text-muted">Orders require a 20% advance. The remaining balance is scheduled across ten monthly instalments after the advance payment is captured.</p>
+      </section>
+    <% } %>
+
+    <% if (profile.role === 'customer' && section === 'purchase') { %>
+      <section class="mt-6" id="customer-shop" data-customer-name="<%= profile.fullName %>" data-customer-email="<%= profile.email %>" data-customer-phone="<%= profile.phone || '' %>">
+        <div class="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <div><p class="text-xs font-bold tracking-[.16em] text-gold-deep">CATALOGUE</p><h2 class="mt-2 font-display text-2xl">Build your order</h2></div>
+          <p class="text-sm text-muted">Checkout uses current server-side prices; 20% advance is collected online.</p>
+        </div>
+        <% if (products.length === 0) { %>
+          <p class="surface mt-5 p-5 text-sm text-muted">No products are currently available.</p>
+        <% } else { %>
+          <div class="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <% products.forEach((product) => { %>
+              <article class="surface flex flex-col p-5">
+                <p class="text-xs font-bold uppercase tracking-[.16em] text-gold-deep"><%= product.metal %> · <%= product.purity %></p>
+                <h3 class="mt-2 font-display text-2xl"><%= Number(product.weightGrams) >= 1000 ? `${Number(product.weightGrams) / 1000} kg` : `${Number(product.weightGrams)} g` %></h3>
+                <p class="mt-2 text-lg font-semibold">₹<%= Number(product.price).toLocaleString('en-IN', { maximumFractionDigits: 2 }) %></p>
+                <button class="btn-secondary mt-4 w-full" type="button" data-add-product data-sku="<%= product.sku %>" data-metal="<%= product.metal %>" data-weight="<%= product.weightGrams %>" data-price="<%= product.price %>">Add to cart</button>
+              </article>
+            <% }); %>
+          </div>
+        <% } %>
+        <section class="surface mt-5 p-5 sm:p-7" aria-labelledby="cart-title">
+          <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <h3 id="cart-title" class="font-display text-2xl">Your cart</h3>
+            <p id="cart-total" class="font-semibold">₹0.00</p>
+          </div>
+          <div id="cart-items" class="mt-4 divide-y divide-hair">
+            <p class="py-3 text-sm text-muted">Your cart is empty.</p>
+          </div>
+          <p id="checkout-message" class="mt-3 text-sm text-muted" role="status" aria-live="polite"></p>
+          <button class="btn-primary mt-4 w-full disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto" id="checkout-button" type="button" disabled>Pay 20% advance</button>
+          <p class="mt-3 text-xs leading-5 text-muted">Prices are verified again on the server before checkout. A confirmed advance payment activates the order and creates ten monthly instalments.</p>
+        </section>
+      </section>
+    <% } %>
+
+    <% if (profile.role === 'customer' && section === 'orders') { %>
+      <section class="mt-6">
+        <h2 class="font-display text-2xl">My orders</h2>
+        <% if (orders.length === 0) { %><p class="surface mt-4 p-5 text-sm text-muted">You do not have any orders yet.</p><% } %>
+        <div class="mt-4 space-y-4">
+          <% orders.forEach((order) => { %>
+            <article class="surface p-5">
+              <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                <div><h3 class="font-semibold"><%= order.orderNumber %></h3><p class="mt-1 text-xs text-muted"><%= new Date(order.createdAt).toLocaleDateString('en-IN') %></p></div>
+                <span class="w-fit rounded-full bg-bone px-3 py-1 text-xs font-semibold capitalize"><%= order.status %></span>
+              </div>
+              <ul class="mt-4 space-y-1 text-sm text-muted">
+                <% order.items.forEach((item) => { %><li><%= item.quantity %> × <%= Number(item.weightGrams) >= 1000 ? `${Number(item.weightGrams) / 1000} kg` : `${Number(item.weightGrams)} g` %> <%= item.metal %> · ₹<%= Number(item.totalAmount).toLocaleString('en-IN') %></li><% }); %>
+              </ul>
+              <div class="mt-4 grid gap-2 border-t border-hair pt-4 text-sm sm:grid-cols-2">
+                <p>Total: <strong>₹<%= Number(order.totalAmount).toLocaleString('en-IN') %></strong></p>
+                <p>Advance: <strong>₹<%= Number(order.advanceAmount).toLocaleString('en-IN') %></strong></p>
+              </div>
+              <% const orderInstallments = installments.filter((installment) => installment.orderId === order.id); %>
+              <% if (orderInstallments.length > 0) { %>
+                <details class="mt-4">
+                  <summary class="min-h-11 cursor-pointer py-2 text-sm font-semibold">View instalments (<%= orderInstallments.length %>)</summary>
+                  <div class="table-wrap mt-2 rounded-lg border border-hair">
+                    <table class="w-full text-left text-xs">
+                      <thead class="bg-bone"><tr><th class="p-3">#</th><th class="p-3">Due date</th><th class="p-3">Amount</th><th class="p-3">Status</th></tr></thead>
+                      <tbody><% orderInstallments.forEach((installment) => { %><tr><td class="border-t border-hair p-3"><%= installment.installmentNumber %></td><td class="border-t border-hair p-3"><%= new Date(`${installment.dueDate}T00:00:00`).toLocaleDateString('en-IN') %></td><td class="border-t border-hair p-3">₹<%= Number(installment.amount).toLocaleString('en-IN') %></td><td class="border-t border-hair p-3 capitalize"><%= installment.status %></td></tr><% }); %></tbody>
+                    </table>
+                  </div>
+                </details>
+              <% } %>
+            </article>
+          <% }); %>
+        </div>
+      </section>
+    <% } %>
+
+    <% if (profile.role === 'customer' && section === 'payments') { %>
+      <section class="mt-6">
+        <h2 class="font-display text-2xl">Payments</h2>
+        <% if (payments.length === 0) { %><p class="surface mt-4 p-5 text-sm text-muted">No payments have been recorded.</p><% } %>
+        <div class="table-wrap mt-4 rounded-xl border border-hair bg-white">
+          <table class="w-full text-left text-sm">
+            <thead class="bg-bone text-xs text-muted"><tr><th class="p-3">Date</th><th class="p-3">Order</th><th class="p-3">Amount</th><th class="p-3">Status</th></tr></thead>
+            <tbody><% payments.forEach((payment) => { %><tr><td class="border-t border-hair p-3"><%= new Date(payment.createdAt).toLocaleDateString('en-IN') %></td><td class="border-t border-hair p-3"><%= orders.find((order) => order.id === payment.orderId)?.orderNumber ?? '—' %></td><td class="border-t border-hair p-3">₹<%= Number(payment.amount).toLocaleString('en-IN') %></td><td class="border-t border-hair p-3 capitalize"><%= payment.status %></td></tr><% }); %></tbody>
+          </table>
+        </div>
+      </section>
+    <% } %>
+
+    <% if (profile.role === 'customer' && section === 'profile') { %>
+      <section class="surface mt-6 max-w-2xl p-5 sm:p-7">
+        <p class="text-xs font-bold tracking-[.16em] text-gold-deep">ACCOUNT</p>
+        <h2 class="mt-2 font-display text-2xl">Profile</h2>
+        <dl class="mt-5 grid gap-4 sm:grid-cols-2">
+          <div><dt class="text-xs text-muted">Full name</dt><dd class="mt-1 font-semibold"><%= profile.fullName %></dd></div>
+          <div><dt class="text-xs text-muted">Email</dt><dd class="mt-1 break-all font-semibold"><%= profile.email %></dd></div>
+          <div><dt class="text-xs text-muted">Phone</dt><dd class="mt-1 font-semibold"><%= profile.phone || 'Not provided' %></dd></div>
+        </dl>
+      </section>
+    <% } %>
+
+    <% if (profile.role === 'associate' && section === 'overview') { %>
+      <section class="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <article class="surface p-5"><p class="text-sm text-muted">Customers</p><p class="mt-2 font-display text-3xl"><%= customers.length %></p></article>
+        <article class="surface p-5"><p class="text-sm text-muted">Associated orders</p><p class="mt-2 font-display text-3xl"><%= orders.length %></p></article>
+        <article class="surface p-5"><p class="text-sm text-muted">Recorded commission</p><p class="mt-2 font-display text-2xl">₹<%= commissions.reduce((total, item) => total + Number(item.amount), 0).toLocaleString('en-IN') %></p></article>
+      </section>
+      <section class="surface mt-5 p-5 sm:p-7"><h2 class="font-display text-2xl">Your associate account</h2><p class="mt-3 text-sm leading-6 text-muted">Customer and commission activity is displayed from the new database. Your administrator can provision customer relationships for your account.</p></section>
+    <% } %>
+    <% if (profile.role === 'associate' && section === 'customers') { %>
+      <section class="mt-6"><h2 class="font-display text-2xl">My customers</h2>
+        <% if (customers.length === 0) { %><p class="surface mt-4 p-5 text-sm text-muted">No customers have been assigned to your account.</p><% } else { %>
+          <div class="mt-4 grid gap-3 sm:grid-cols-2"><% customers.forEach((customer) => { %><article class="surface p-4"><h3 class="font-semibold"><%= customer.fullName %></h3><p class="mt-1 break-all text-sm text-muted"><%= customer.email %></p></article><% }); %></div>
+        <% } %>
+      </section>
+    <% } %>
+    <% if (profile.role === 'associate' && section === 'network') { %>
+      <section class="surface mt-6 p-5 sm:p-7"><h2 class="font-display text-2xl">Network</h2><p class="mt-3 text-sm leading-6 text-muted">Network relationships are stored in the database. Add associate profiles and their parent associate IDs to populate this view.</p></section>
+    <% } %>
+    <% if (profile.role === 'associate' && section === 'commission') { %>
+      <section class="mt-6"><h2 class="font-display text-2xl">Commission ledger</h2>
+        <% if (commissions.length === 0) { %><p class="surface mt-4 p-5 text-sm text-muted">No commissions have been recorded.</p><% } else { %>
+          <div class="table-wrap mt-4 rounded-xl border border-hair bg-white"><table class="w-full text-left text-sm"><thead class="bg-bone text-xs text-muted"><tr><th class="p-3">Date</th><th class="p-3">Order</th><th class="p-3">Level</th><th class="p-3">Amount</th><th class="p-3">Status</th></tr></thead><tbody><% commissions.forEach((commission) => { %><tr><td class="border-t border-hair p-3"><%= new Date(commission.createdAt).toLocaleDateString('en-IN') %></td><td class="border-t border-hair p-3"><%= commission.orderId %></td><td class="border-t border-hair p-3"><%= commission.level %></td><td class="border-t border-hair p-3">₹<%= Number(commission.amount).toLocaleString('en-IN') %></td><td class="border-t border-hair p-3 capitalize"><%= commission.status %></td></tr><% }); %></tbody></table></div>
+        <% } %>
+      </section>
+    <% } %>
+    <% if (profile.role === 'associate' && ['leaderboard', 'rewards'].includes(section)) { %>
+      <section class="surface mt-6 p-5 sm:p-7"><h2 class="font-display text-2xl"><%= section === 'leaderboard' ? 'Leaderboard' : 'Rewards' %></h2><p class="mt-3 text-sm leading-6 text-muted">This view will populate as associate performance and reward records are entered in the new database.</p></section>
+    <% } %>
+
+    <% if (profile.role === 'admin' && section === 'overview') { %>
+      <section class="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <article class="surface p-5"><p class="text-sm text-muted">Profiles</p><p class="mt-2 font-display text-3xl"><%= profileCount %></p></article>
+        <article class="surface p-5"><p class="text-sm text-muted">Associates</p><p class="mt-2 font-display text-3xl"><%= associates.length %></p></article>
+        <article class="surface p-5"><p class="text-sm text-muted">Orders</p><p class="mt-2 font-display text-3xl"><%= orderCount %></p></article>
+        <article class="surface p-5"><p class="text-sm text-muted">Active products</p><p class="mt-2 font-display text-3xl"><%= products.length %></p></article>
+      </section>
+      <section class="surface mt-5 p-5 sm:p-7"><h2 class="font-display text-2xl">Administrator console</h2><p class="mt-3 text-sm leading-6 text-muted">Metal rates, derived product prices, orders, and associate profiles are managed through the new PostgreSQL backend.</p><a class="btn-primary mt-5" href="/dashboard?section=pricing">Manage pricing</a></section>
+    <% } %>
+
+    <% if (profile.role === 'admin' && section === 'pricing') { %>
+      <section class="surface mt-6 p-5 sm:p-7">
+        <p class="text-xs font-bold tracking-[.16em] text-gold-deep">ADMIN PRICING</p>
+        <h2 class="mt-2 font-display text-2xl">Reference rates and denomination markups</h2>
+        <p class="mt-2 text-sm leading-6 text-muted">Saving recalculates the product catalogue prices used for future checkouts. Existing orders keep their stored checkout prices.</p>
+        <form class="mt-6" action="/admin/pricing" method="post">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <div class="grid gap-4 sm:grid-cols-2">
+            <label class="text-sm font-semibold" for="gold-rate">Gold per 10 grams (₹)
+              <input class="field mt-2" id="gold-rate" name="goldRate" type="number" min="0.01" step="0.01" value="<%= pricing.rates.gold %>" required>
+            </label>
+            <label class="text-sm font-semibold" for="silver-rate">Silver per kilogram (₹)
+              <input class="field mt-2" id="silver-rate" name="silverRate" type="number" min="0.01" step="0.01" value="<%= pricing.rates.silver %>" required>
+            </label>
+          </div>
+          <h3 class="mt-7 font-display text-xl">Gold markups (%)</h3>
+          <div class="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
+            <% [1, 2, 5, 10, 50, 100].forEach((weight) => { %><label class="text-xs font-semibold" for="gold-markup-<%= weight %>"><%= weight %> g<input class="field mt-1" id="gold-markup-<%= weight %>" name="goldMarkup<%= weight %>" type="number" min="0" max="100" step="0.01" value="<%= pricing.markups.gold[String(weight)] %>" required></label><% }); %>
+          </div>
+          <h3 class="mt-7 font-display text-xl">Silver markups (%)</h3>
+          <div class="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
+            <% [50, 100, 200, 500, 1000].forEach((weight) => { %><label class="text-xs font-semibold" for="silver-markup-<%= weight %>"><%= weight >= 1000 ? '1 kg' : `${weight} g` %><input class="field mt-1" id="silver-markup-<%= weight %>" name="silverMarkup<%= weight %>" type="number" min="0" max="100" step="0.01" value="<%= pricing.markups.silver[String(weight)] %>" required></label><% }); %>
+          </div>
+          <button class="btn-primary mt-7 w-full sm:w-auto" type="submit">Save rates and prices</button>
+        </form>
+      </section>
+    <% } %>
+
+    <% if (profile.role === 'admin' && ['orders', 'products'].includes(section)) { %>
+      <section class="mt-6">
+        <h2 class="font-display text-2xl"><%= section === 'orders' ? 'Recent orders' : 'Product catalogue' %></h2>
+        <div class="table-wrap mt-4 rounded-xl border border-hair bg-white">
+          <% if (section === 'orders') { %>
+            <% if (orders.length === 0) { %><p class="p-5 text-sm text-muted">No orders have been placed.</p><% } else { %>
+              <table class="w-full text-left text-sm"><thead class="bg-bone text-xs text-muted"><tr><th class="p-3">Order</th><th class="p-3">Customer</th><th class="p-3">Total</th><th class="p-3">Advance</th><th class="p-3">Status</th></tr></thead><tbody><% orders.forEach((order) => { %><tr><td class="border-t border-hair p-3"><%= order.orderNumber %></td><td class="border-t border-hair p-3"><%= order.customerId %></td><td class="border-t border-hair p-3">₹<%= Number(order.totalAmount).toLocaleString('en-IN') %></td><td class="border-t border-hair p-3">₹<%= Number(order.advanceAmount).toLocaleString('en-IN') %></td><td class="border-t border-hair p-3 capitalize"><%= order.status %></td></tr><% }); %></tbody></table>
+            <% } %>
+          <% } else { %>
+            <table class="w-full text-left text-sm"><thead class="bg-bone text-xs text-muted"><tr><th class="p-3">SKU</th><th class="p-3">Metal</th><th class="p-3">Weight</th><th class="p-3">Purity</th><th class="p-3">Price</th><th class="p-3">Status</th></tr></thead><tbody><% products.forEach((product) => { %><tr><td class="border-t border-hair p-3"><%= product.sku %></td><td class="border-t border-hair p-3 capitalize"><%= product.metal %></td><td class="border-t border-hair p-3"><%= Number(product.weightGrams) >= 1000 ? `${Number(product.weightGrams) / 1000} kg` : `${Number(product.weightGrams)} g` %></td><td class="border-t border-hair p-3"><%= product.purity %></td><td class="border-t border-hair p-3">₹<%= Number(product.price).toLocaleString('en-IN') %></td><td class="border-t border-hair p-3"><%= product.active ? 'Active' : 'Inactive' %></td></tr><% }); %></tbody></table>
+          <% } %>
+        </div>
+      </section>
+    <% } %>
+
+    <% if (profile.role === 'admin' && section === 'associates') { %>
+      <section class="mt-6">
+        <h2 class="font-display text-2xl">Associate accounts</h2>
+        <% if (adminError) { %><p class="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800" role="alert"><%= adminError %></p><% } %>
+        <% if (created) { %><p class="mt-4 rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-900" role="status">Associate account created. Share the temporary password securely.</p><% } %>
+        <% if (assigned) { %><p class="mt-4 rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-900" role="status">Customer assignment saved.</p><% } %>
+        <div class="mt-4 grid gap-4 lg:grid-cols-2">
+          <form class="surface p-5" action="/admin/associates" method="post">
+            <h3 class="font-display text-xl">Create an associate</h3>
+            <p class="mt-2 text-xs leading-5 text-muted">Set a temporary password of at least 12 characters and share it out of band.</p>
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+            <div class="mt-4 space-y-3">
+              <label class="block text-sm font-semibold">Full name<input class="field mt-1" name="fullName" minlength="2" maxlength="160" required></label>
+              <label class="block text-sm font-semibold">Email<input class="field mt-1" name="email" type="email" maxlength="254" required></label>
+              <label class="block text-sm font-semibold">Phone (optional)<input class="field mt-1" name="phone" type="tel" maxlength="24"></label>
+              <label class="block text-sm font-semibold">Temporary password<input class="field mt-1" name="password" type="password" minlength="12" maxlength="72" autocomplete="new-password" required></label>
+              <button class="btn-primary w-full" type="submit">Create account</button>
+            </div>
+          </form>
+          <form class="surface p-5" action="/admin/customers/assign" method="post">
+            <h3 class="font-display text-xl">Assign a customer</h3>
+            <p class="mt-2 text-xs leading-5 text-muted">Link a registered customer to one associate.</p>
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+            <div class="mt-4 space-y-3">
+              <label class="block text-sm font-semibold">Customer
+                <select class="field mt-1" name="customerEmail" required>
+                  <% customerProfiles.forEach((customer) => { %><option value="<%= customer.email %>"><%= customer.fullName %> · <%= customer.email %></option><% }); %>
+                </select>
+              </label>
+              <label class="block text-sm font-semibold">Associate
+                <select class="field mt-1" name="associateId" required>
+                  <% associates.forEach((associate) => { %><option value="<%= associate.id %>"><%= associate.fullName %> · <%= associate.email %></option><% }); %>
+                </select>
+              </label>
+              <button class="btn-secondary w-full disabled:opacity-50" type="submit" <%= !customerProfiles.length || !associates.length ? 'disabled' : '' %>>Assign customer</button>
+            </div>
+          </form>
+        </div>
+        <% if (associates.length === 0) { %><p class="surface mt-4 p-5 text-sm text-muted">No associate accounts have been created yet.</p><% } else { %>
+          <div class="mt-5 grid gap-3 sm:grid-cols-2"><% associates.forEach((associate) => { %><article class="surface p-4"><h3 class="font-semibold"><%= associate.fullName %></h3><p class="mt-1 break-all text-sm text-muted"><%= associate.email %></p></article><% }); %></div>
+        <% } %>
+      </section>
+    <% } %>
+  </main>
+  <%- include('partials/footer') %>
+  <% if (profile.role === 'customer' && section === 'purchase') { %>
+    <script>window.korvianaCsrfToken = <%- JSON.stringify(csrfToken) %>;</script>
+    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+    <script src="/js/customer-dashboard.js" defer></script>
+  <% } %>
+</body>
+</html>

@@ -1,40 +1,27 @@
-# Razorpay Checkout
+# Razorpay checkout
 
-The checkout uses a Supabase Edge Function to create Razorpay orders, verify checkout signatures, capture payments, and update the order/payment records. Razorpay credentials are server secrets; do not add the key secret to the frontend or commit it.
+The NestJS payment API creates Razorpay orders from server-side catalogue prices, verifies the signed checkout response, confirms the captured payment with Razorpay, and only then activates the order and creates ten monthly instalments. The browser never receives the Razorpay secret.
 
-## Setup
+## Configure test mode
 
-1. Apply `supabase/schema.sql` in the Supabase SQL Editor if this is a new project, then apply all files in `supabase/migrations` in timestamp order. If your local and remote migration histories are already in sync, you can instead run:
+1. Start PostgreSQL and configure `DATABASE_URL` and `JWT_SECRET` as described in [README.md](./README.md).
+2. In Razorpay Dashboard, enable Test Mode and copy the test key ID and key secret into the server `.env`:
 
-   ```powershell
-   supabase link --project-ref <your-project-ref>
-   supabase db push
+   ```dotenv
+   RAZORPAY_KEY_ID=rzp_test_...
+   RAZORPAY_KEY_SECRET=...
    ```
 
-   The price chart and admin pricing editor currently store rates in the current browser's local storage; they do not require the IBJA pricing tables or update `products`. These browser-local rates are not shared with visitors or devices and do not change server-side checkout prices. Shared, server-authoritative pricing requires a backend pricing flow.
+3. Restart the NestJS app and sign in with a customer account. Add catalogue items and test checkout using Razorpay test payment details.
+4. Verify that a successful payment creates an active order and ten instalment rows in PostgreSQL. Failed or cancelled checkouts must not activate orders.
 
-2. In Razorpay Dashboard, enable Test Mode and copy the test key ID and key secret. Add them as Supabase Edge Function secrets:
+The payable checkout amount is a 20% advance against the full cart. The server reloads active products and calculates prices from PostgreSQL; any total sent by the browser is only a stale-price check and is never trusted as the order amount.
 
-   ```powershell
-   supabase secrets set RAZORPAY_KEY_ID=<test-key-id> RAZORPAY_KEY_SECRET=<test-key-secret>
-   ```
+## Production
 
-3. Deploy the payment function:
+- Use live-mode Razorpay credentials only in the production secret manager or environment.
+- Serve the app over HTTPS and set `NODE_ENV=production`.
+- Use a private PostgreSQL connection and a strong `JWT_SECRET`.
+- Do not commit credentials or place `RAZORPAY_KEY_SECRET` in client-side code.
 
-   ```powershell
-   supabase functions deploy razorpay-payments
-   ```
-
-4. Sign in with a customer account and test a checkout using Razorpay test credentials and test payment details. Demo login deliberately disables live checkout.
-
-5. After testing, replace the Edge Function secrets with live-mode credentials and deploy the function again.
-
-The browser receives only the Razorpay key ID. The Edge Function uses the secret key to create and capture gateway orders and verifies the signed checkout response before marking a payment successful.
-Cart items and their checkout-time prices are stored in `order_items`; the order total and advance payment cover the full cart.
-
-## OTP Login Setup
-
-- Enable the Email provider in Supabase Auth. The email OTP template must include `{{ .Token }}` because the login screen asks users to enter the code; a template containing only `{{ .ConfirmationURL }}` sends a link instead.
-- Configure custom SMTP for reliable production delivery. Supabase's default email service is rate-limited and intended for testing.
-- To allow mobile login, configure an SMS provider in Supabase Auth and enter phone numbers in international format, such as `+919876543210`.
-- Apply `supabase/schema.sql` so the auth-user trigger creates each customer's profile. Associate and admin profiles must be provisioned with their role before those users request an OTP; only customer login can create a new user.
+The separate `/purchase.html` page creates an email draft only. It is not a Razorpay checkout, order, or payment.

@@ -1,0 +1,101 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color: #17314e;
+  background: #f7f6f1;
+  font-family: "IBM Plex Sans", system-ui, sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  min-width: 320px;
+  margin: 0;
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.page-width {
+  width: min(100% - 2rem, 72rem);
+  margin-inline: auto;
+}
+
+.surface {
+  border: 1px solid #dce3ea;
+  border-radius: 1rem;
+  background: #fff;
+  box-shadow: 0 12px 30px rgb(23 49 78 / 5%);
+}
+
+.field {
+  min-height: 2.75rem;
+  width: 100%;
+  border: 1px solid #cbd5df;
+  border-radius: .65rem;
+  background: #fff;
+  padding: .65rem .8rem;
+}
+
+.field:focus {
+  border-color: #89682e;
+  outline: 2px solid rgb(184 148 77 / 22%);
+}
+
+.btn-primary {
+  display: inline-flex;
+  min-height: 2.75rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  background: #17314e;
+  padding: .65rem 1.15rem;
+  color: #fff;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.btn-primary:hover {
+  background: #89682e;
+}
+
+.btn-secondary {
+  display: inline-flex;
+  min-height: 2.75rem;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #dce3ea;
+  border-radius: 9999px;
+  background: #fff;
+  padding: .65rem 1.15rem;
+  color: #17314e;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.table-wrap table {
+  min-width: 38rem;
+}
+
+@media (min-width: 48rem) {
+  .page-width {
+    width: min(100% - 3rem, 72rem);
+  }
+}

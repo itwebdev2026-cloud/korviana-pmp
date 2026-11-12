@@ -1,16 +1,56 @@
-# React + Vite
+# KorViana PMP
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+The application is served by NestJS with server-rendered EJS pages, a PostgreSQL database managed by TypeORM migrations, and a mobile-first Tailwind CSS build.
 
-Currently, two official plugins are available:
+The obsolete React/Vite frontend and hosted-backend integrations have been removed. Original CSV exports are retained under `data/legacy-export/`; they are not read by the application or imported automatically.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Requirements
 
-## React Compiler
+- Node.js 20 or later
+- PostgreSQL 15 or later (or Docker Compose)
+- Razorpay test credentials for online checkout
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Local setup
 
-## Expanding the Oxlint configuration
+From this directory:
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
+```powershell
+Copy-Item .env.example .env
+docker compose up -d postgres
+npm install
+```
+
+Set a unique `JWT_SECRET` and administrator credentials in `.env`. Use a 12–72 byte administrator password. For example:
+
+```powershell
+node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
+```
+
+Paste the generated value into `JWT_SECRET`. Leave Razorpay keys empty to run the site without online checkout.
+
+Start the application:
+
+```powershell
+npm run start:dev
+```
+
+Open `http://localhost:3000`. On the first successful database connection, TypeORM runs the initial schema migration. The app seeds the supported gold/silver denominations and starter reference rates; an admin account is created only when both `ADMIN_EMAIL` and `ADMIN_PASSWORD` are set.
+
+## Pages
+
+- `/` — program landing page
+- `/about.html` — KorViana information
+- `/purchase.html` — email-only purchase request builder (not an order or payment)
+- `/associates.html` — portal entry points
+- `/login` — customer, associate, and admin sign-in
+- `/dashboard` — role-specific server-rendered portal
+
+Tailwind is built as part of `npm run build`; responsive classes use mobile-first defaults with `sm`, `md`, and `lg` breakpoints.
+
+## Accounts and data
+
+This deployment uses a new PostgreSQL database. Existing users, data, and passwords are not copied. Customers can create accounts from the sign-in page. Create the first admin through the environment variables before starting the app. Associate accounts must be provisioned by an administrator; do not make associate or admin registration public.
+
+For production, run `npm run build` and then `npm run start:prod`. Deployments must set `NODE_ENV=production`, a strong `JWT_SECRET`, a PostgreSQL `DATABASE_URL`, and HTTPS. Configure the Razorpay keys only in the server environment. Do not commit `.env` or payment credentials.
+
+See [PAYMENTS.md](./PAYMENTS.md) for checkout configuration and test steps.

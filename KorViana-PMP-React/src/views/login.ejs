@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sign in · KorViana</title>
+  <link rel="stylesheet" href="/css/tailwind.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+<body class="flex min-h-screen flex-col bg-bone font-sans text-ink">
+  <%- include('partials/header') %>
+  <main class="page-width flex flex-1 items-start justify-center py-10 sm:items-center sm:py-16">
+    <div class="w-full max-w-lg">
+      <a class="text-sm font-semibold text-gold-deep hover:underline" href="/">← Back to home</a>
+      <section class="surface mt-5 p-5 sm:p-8">
+        <p class="text-xs font-bold tracking-[.2em] text-gold-deep">SECURE ACCOUNT</p>
+        <h1 class="mt-3 font-display text-3xl">Sign in to KorViana</h1>
+        <p class="mt-2 text-sm leading-6 text-muted">Use the account created for your program role.</p>
+        <% if (error) { %>
+          <p class="mt-5 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800" role="alert"><%= error %></p>
+        <% } %>
+        <div class="mt-5 grid grid-cols-3 gap-2 text-center text-xs sm:text-sm">
+          <% [
+            ['customer', 'Customer'],
+            ['associate', 'Associate'],
+            ['admin', 'Admin'],
+          ].forEach(([value, label]) => { %>
+            <a class="rounded-lg border px-2 py-3 font-semibold <%= role === value || (value === 'associate' && role === 'agent') ? 'border-gold bg-[#f7f1e4] text-gold-deep' : 'border-hair bg-white text-muted' %>" href="/login?role=<%= value %>"><%= label %></a>
+          <% }); %>
+        </div>
+        <form class="mt-6 space-y-4" action="/auth/login?role=<%= role %>" method="post">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <label class="block text-sm font-semibold" for="login-email">Email
+            <input class="field mt-2" id="login-email" name="email" type="email" autocomplete="username" maxlength="254" required>
+          </label>
+          <label class="block text-sm font-semibold" for="login-password">Password
+            <input class="field mt-2" id="login-password" name="password" type="password" autocomplete="current-password" minlength="12" maxlength="72" required>
+          </label>
+          <button class="btn-primary w-full" type="submit">Sign in</button>
+        </form>
+        <% if (role === 'customer' && mode === 'register') { %>
+          <form class="mt-8 border-t border-hair pt-6" action="/auth/register" method="post">
+            <h2 class="font-display text-2xl">Create a customer account</h2>
+            <p class="mt-2 text-sm leading-6 text-muted">Existing users from the previous system need to register again.</p>
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+            <div class="mt-4 space-y-4">
+              <label class="block text-sm font-semibold" for="full-name">Full name
+                <input class="field mt-2" id="full-name" name="fullName" autocomplete="name" minlength="2" maxlength="160" required>
+              </label>
+              <label class="block text-sm font-semibold" for="register-email">Email
+                <input class="field mt-2" id="register-email" name="email" type="email" autocomplete="email" maxlength="254" required>
+              </label>
+              <label class="block text-sm font-semibold" for="phone">Phone (optional)
+                <input class="field mt-2" id="phone" name="phone" type="tel" autocomplete="tel" maxlength="24">
+              </label>
+              <label class="block text-sm font-semibold" for="register-password">Password (12–72 characters)
+                <input class="field mt-2" id="register-password" name="password" type="password" autocomplete="new-password" minlength="12" maxlength="72" required>
+              </label>
+              <button class="btn-secondary w-full" type="submit">Create account</button>
+            </div>
+          </form>
+        <% } else if (role === 'customer') { %>
+          <p class="mt-5 text-center text-sm text-muted">New customer? <a class="font-semibold text-gold-deep hover:underline" href="/login?role=customer&mode=register">Create an account</a></p>
+        <% } %>
+      </section>
+    </div>
+  </main>
+  <%- include('partials/footer') %>
+</body>
+</html>

@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f7f6f1">
+  <title>KorViana Precious Metal Program</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/css/tailwind.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body class="bg-bone font-sans text-ink">
+  <%- include('partials/header') %>
+  <main>
+    <section class="bg-gradient-to-br from-white via-bone to-[#eee7d8]">
+      <div class="page-width grid gap-10 py-14 sm:py-20 lg:grid-cols-2 lg:items-center lg:py-24">
+        <div>
+          <p class="mb-4 text-xs font-bold tracking-[.2em] text-gold-deep">PRECIOUS METAL PROGRAM</p>
+          <h1 class="max-w-xl font-display text-4xl leading-tight sm:text-5xl lg:text-6xl">Own gold and silver, one instalment at a time.</h1>
+          <p class="mt-5 max-w-xl text-base leading-7 text-muted sm:text-lg">Book 24-karat gold or fine silver with 20% down, then spread the rest across ten monthly instalments — tracked, receipted, and always visible.</p>
+          <div class="mt-8 flex flex-col gap-3 min-[420px]:flex-row">
+            <a class="btn-primary w-full sm:w-auto" href="/login?role=customer">Start a purchase</a>
+            <a class="btn-secondary w-full sm:w-auto" href="/about.html">About KorViana</a>
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-3 sm:gap-5">
+          <img class="col-span-2 aspect-[16/9] w-full rounded-2xl bg-white object-contain p-6 sm:p-10" src="/gold-bullion.svg" alt="Gold bullion bar">
+          <div class="surface p-4 sm:p-6">
+            <p class="text-xs font-semibold tracking-wide text-gold-deep">BOOK</p>
+            <p class="mt-2 font-display text-lg sm:text-xl">20% advance</p>
+          </div>
+          <div class="surface p-4 sm:p-6">
+            <p class="text-xs font-semibold tracking-wide text-gold-deep">COMPLETE</p>
+            <p class="mt-2 font-display text-lg sm:text-xl">10 instalments</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="how" class="page-width py-14 sm:py-20">
+      <p class="text-xs font-bold tracking-[.2em] text-gold-deep">HOW IT WORKS</p>
+      <h2 class="mt-3 max-w-xl font-display text-3xl sm:text-4xl">A clear plan from booking to completion.</h2>
+      <div class="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <% const steps = [
+          ['01', 'Book with 20% down', 'Choose weight and purity, confirm the order, and pay the advance securely.'],
+          ['02', 'Pay across 10 months', 'The remaining balance is split into monthly instalments.'],
+          ['03', 'Track to completion', 'Review your orders, payments, and remaining balance in your portal.'],
+        ]; %>
+        <% steps.forEach(([number, title, description]) => { %>
+          <article class="surface p-5 sm:p-7">
+            <p class="font-display text-sm text-gold-deep"><%= number %></p>
+            <h3 class="mt-3 font-display text-xl"><%= title %></h3>
+            <p class="mt-2 text-sm leading-6 text-muted"><%= description %></p>
+          </article>
+        <% }); %>
+      </div>
+    </section>
+
+    <section class="border-y border-hair bg-white/70">
+      <div class="page-width py-14 sm:py-20">
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p class="text-xs font-bold tracking-[.2em] text-gold-deep">CATALOGUE</p>
+            <h2 class="mt-3 font-display text-3xl sm:text-4xl">Gold and silver, by weight.</h2>
+          </div>
+          <p class="max-w-sm text-sm leading-6 text-muted">Today's product prices are shown after you sign in.</p>
+        </div>
+        <div class="mt-8 grid gap-5 md:grid-cols-2">
+          <% [
+            { metal: 'gold', title: 'Gold · 24K, 99.99% purity', image: '/gold-bullion.svg' },
+            { metal: 'silver', title: 'Silver · 99.99% purity', image: '/silver-bullion.svg' },
+          ].forEach((group) => { %>
+            <article class="surface overflow-hidden">
+              <img src="<%= group.image %>" alt="<%= group.metal %> bullion bar" class="h-44 w-full bg-bone object-contain p-7 sm:h-52">
+              <div class="border-t border-hair px-5 py-4">
+                <h3 class="font-display text-xl"><%= group.title %></h3>
+                <div class="mt-4 flex flex-wrap gap-2">
+                  <% products.filter((product) => product.metal === group.metal).forEach((product) => { %>
+                    <span class="rounded-full border border-hair px-3 py-1 text-xs text-muted"><%= Number(product.weightGrams) >= 1000 ? `${Number(product.weightGrams) / 1000} kg` : `${Number(product.weightGrams)} g` %></span>
+                  <% }); %>
+                </div>
+                <a class="mt-5 inline-flex min-h-11 items-center font-semibold text-gold-deep hover:underline" href="/login?role=customer">Sign in for today's price <span class="ml-2" aria-hidden="true">→</span></a>
+              </div>
+            </article>
+          <% }); %>
+        </div>
+      </div>
+    </section>
+
+    <section class="page-width py-14 sm:py-20">
+      <div class="surface flex flex-col gap-5 p-6 sm:flex-row sm:items-center sm:justify-between sm:p-9">
+        <div>
+          <p class="text-xs font-bold tracking-[.2em] text-gold-deep">KORVIANA ASSOCIATES</p>
+          <h2 class="mt-2 font-display text-2xl sm:text-3xl">Grow with a transparent program.</h2>
+        </div>
+        <a class="btn-primary shrink-0" href="/associates.html">Explore the program</a>
+      </div>
+    </section>
+  </main>
+  <%- include('partials/footer') %>
+</body>
+</html>
