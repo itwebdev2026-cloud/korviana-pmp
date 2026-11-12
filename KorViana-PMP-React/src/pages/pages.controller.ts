@@ -26,9 +26,14 @@ export class PagesController {
 
   @Get()
   async home(@Req() request: Request, @Res() response: Response): Promise<void> {
+    const [pricing, products] = await Promise.all([
+      this.pricing.getSnapshot(),
+      this.pricing.getProducts(),
+    ]);
     response.render('home', {
       csrfToken: request.cookies?.korviana_csrf ?? '',
-      products: await this.pricing.getProducts(),
+      pricing,
+      products,
     });
   }
 

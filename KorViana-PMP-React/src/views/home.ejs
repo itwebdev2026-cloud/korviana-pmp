@@ -39,6 +39,48 @@
       </div>
     </section>
 
+    <section class="bg-white">
+      <div class="page-width py-14 sm:py-20">
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p class="text-xs font-bold tracking-[.2em] text-gold-deep">PRICE CHART</p>
+            <h2 class="mt-3 font-display text-3xl sm:text-4xl">Live reference pricing.</h2>
+          </div>
+          <p class="max-w-md text-sm leading-6 text-muted"><%= pricing.updatedAt ? `Updated ${new Date(pricing.updatedAt).toLocaleString('en-IN')}` : 'Starter rates ready for review' %></p>
+        </div>
+        <div class="mt-8 grid gap-5 lg:grid-cols-2">
+          <% const formatWeightLabel = (grams) => Number(grams) >= 1000 ? `${Number(grams) / 1000} kg` : `${Number(grams)} g`; %>
+          <% ['gold', 'silver'].forEach((metal) => {
+            const items = products.filter((product) => product.metal === metal);
+            const title = metal === 'gold' ? 'Gold · 24K, 99.99%' : 'Silver · 99.99%';
+            const rateLabel = metal === 'gold' ? 'per 10 g' : 'per kg';
+          %>
+            <article class="surface p-5 sm:p-6">
+              <div class="flex items-start justify-between gap-3">
+                <div>
+                  <p class="text-xs font-semibold tracking-[.18em] text-gold-deep"><%= metal.toUpperCase() %></p>
+                  <h3 class="mt-2 font-display text-2xl"><%= title %></h3>
+                </div>
+                <div class="rounded-full border border-gold/30 bg-[#f7f1e4] px-3 py-2 text-right">
+                  <p class="text-[10px] uppercase tracking-[.18em] text-muted">Rate</p>
+                  <p class="mt-1 font-display text-lg text-gold-deep">₹<%= Number(pricing.rates[metal]).toLocaleString('en-IN') %></p>
+                  <p class="text-[10px] text-muted"><%= rateLabel %></p>
+                </div>
+              </div>
+              <div class="mt-5 space-y-2">
+                <% items.forEach((product) => { %>
+                  <div class="flex items-center justify-between rounded-lg bg-bone px-3 py-2">
+                    <span class="text-sm text-muted"><%= formatWeightLabel(product.weightGrams) %></span>
+                    <span class="font-semibold text-ink">₹<%= Number(product.price).toLocaleString('en-IN') %></span>
+                  </div>
+                <% }); %>
+              </div>
+            </article>
+          <% }); %>
+        </div>
+      </div>
+    </section>
+
     <section id="how" class="page-width py-14 sm:py-20">
       <p class="text-xs font-bold tracking-[.2em] text-gold-deep">HOW IT WORKS</p>
       <h2 class="mt-3 max-w-xl font-display text-3xl sm:text-4xl">A clear plan from booking to completion.</h2>

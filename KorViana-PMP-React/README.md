@@ -53,4 +53,18 @@ This deployment uses a new PostgreSQL database. Existing users, data, and passwo
 
 For production, run `npm run build` and then `npm run start:prod`. Deployments must set `NODE_ENV=production`, a strong `JWT_SECRET`, a PostgreSQL `DATABASE_URL`, and HTTPS. Configure the Razorpay keys only in the server environment. Do not commit `.env` or payment credentials.
 
+## Deploying to Vercel
+
+Import the repository into Vercel and set the project root directory to `KorViana-PMP-React`. The included Vercel configuration builds the NestJS application and routes requests through its serverless handler.
+
+Create a hosted PostgreSQL database through a provider such as Neon, then configure these variables in the Vercel project before deploying:
+
+- `DATABASE_URL` — the hosted database connection string
+- `JWT_SECRET` — a unique random secret of at least 32 characters
+- `NODE_ENV=production`
+- `ADMIN_EMAIL` and `ADMIN_PASSWORD` — optional; set both together to provision the initial administrator
+- `DATABASE_SSL=true` — set if required by the database provider
+
+Online checkout remains disabled unless the Razorpay server keys are configured. Never use the local `.env` database URL for a Vercel deployment.
+
 See [PAYMENTS.md](./PAYMENTS.md) for checkout configuration and test steps.

@@ -3,20 +3,24 @@
     <a href="/" aria-label="KorViana home" class="shrink-0">
       <img src="/korviana-logo.png" alt="KorViana Ventures LLP" class="h-14 w-auto object-contain sm:h-16">
     </a>
-    <nav class="hidden items-center gap-6 text-sm font-medium md:flex" aria-label="Main navigation">
-      <a class="hover:text-gold-deep" href="/">Home</a>
-      <a class="hover:text-gold-deep" href="/about.html">About</a>
-      <a class="hover:text-gold-deep" href="/purchase.html">Purchase</a>
-      <a class="hover:text-gold-deep" href="/associates.html">Associates</a>
-    </nav>
-    <details class="relative md:hidden">
-      <summary class="flex min-h-11 cursor-pointer list-none items-center rounded-full border border-hair bg-white px-4 text-sm font-semibold">Menu</summary>
-      <nav class="absolute right-0 top-14 flex w-56 flex-col gap-1 rounded-xl border border-hair bg-white p-3 text-sm shadow-lg" aria-label="Mobile navigation">
-        <a class="rounded-lg px-3 py-2 hover:bg-bone" href="/">Home</a>
-        <a class="rounded-lg px-3 py-2 hover:bg-bone" href="/about.html">About</a>
-        <a class="rounded-lg px-3 py-2 hover:bg-bone" href="/purchase.html">Purchase</a>
-        <a class="rounded-lg px-3 py-2 hover:bg-bone" href="/associates.html">Associates</a>
+    <div class="flex items-center gap-3">
+      <nav class="hidden items-center gap-6 text-sm font-medium md:flex" aria-label="Main navigation">
+        <a class="hover:text-gold-deep" href="/">Home</a>
+        <a class="hover:text-gold-deep" href="/about.html">About</a>
+        <a class="hover:text-gold-deep" href="/purchase.html">Purchase</a>
+        <a class="hover:text-gold-deep" href="/associates.html">Associates</a>
       </nav>
-    </details>
+      <a class="btn-primary hidden min-h-11 items-center justify-center px-4 py-2 text-sm md:inline-flex" href="/login">Sign in</a>
+      <details class="relative md:hidden">
+        <summary class="flex min-h-11 cursor-pointer list-none items-center rounded-full border border-hair bg-white px-4 text-sm font-semibold">Menu</summary>
+        <nav class="absolute right-0 top-14 flex w-56 flex-col gap-1 rounded-xl border border-hair bg-white p-3 text-sm shadow-lg" aria-label="Mobile navigation">
+          <a class="rounded-lg px-3 py-2 hover:bg-bone" href="/">Home</a>
+          <a class="rounded-lg px-3 py-2 hover:bg-bone" href="/about.html">About</a>
+          <a class="rounded-lg px-3 py-2 hover:bg-bone" href="/purchase.html">Purchase</a>
+          <a class="rounded-lg px-3 py-2 hover:bg-bone" href="/associates.html">Associates</a>
+          <a class="mt-1 rounded-lg bg-gold-deep px-3 py-2 text-center font-semibold text-white hover:bg-gold-dark" href="/login">Sign in</a>
+        </nav>
+      </details>
+    </div>
   </div>
 </header>
